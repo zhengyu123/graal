@@ -60,12 +60,25 @@ public abstract class JNIHandleSet {
     private boolean destroyed = false;
 
     final JNIMethodId javaLangClassGetName;
+    final JNIMethodId javaLangClassGetInterfaces;
+    final JNIObjectHandle javaLangReflectProxy;
+    final JNIMethodId javaLangReflectProxyIsProxyClass;
 
     public JNIHandleSet(JNIEnvironment env) {
         JNIObjectHandle javaLangClass = findClass(env, "java/lang/Class");
         try (CTypeConversion.CCharPointerHolder name = Support.toCString("getName"); CTypeConversion.CCharPointerHolder signature = Support.toCString("()Ljava/lang/String;")) {
             javaLangClassGetName = Support.jniFunctions().getGetMethodID().invoke(env, javaLangClass, name.get(), signature.get());
             guarantee(javaLangClassGetName.isNonNull());
+        }
+        try (CTypeConversion.CCharPointerHolder name = Support.toCString("getInterfaces"); CTypeConversion.CCharPointerHolder signature = Support.toCString("()[Ljava/lang/Class;")) {
+            javaLangClassGetInterfaces = Support.jniFunctions().getGetMethodID().invoke(env, javaLangClass, name.get(), signature.get());
+            guarantee(javaLangClassGetInterfaces.isNonNull());
+        }
+        javaLangReflectProxy = newClassGlobalRef(env, "java/lang/reflect/Proxy");
+        guarantee(javaLangReflectProxy.notEqual(nullHandle()));
+        try (CTypeConversion.CCharPointerHolder name = Support.toCString("isProxyClass"); CTypeConversion.CCharPointerHolder signature = Support.toCString("(Ljava/lang/Class;)Z")) {
+            javaLangReflectProxyIsProxyClass = Support.jniFunctions().getGetStaticMethodID().invoke(env, javaLangReflectProxy, name.get(), signature.get());
+            guarantee(javaLangReflectProxyIsProxyClass.isNonNull());
         }
     }
 

@@ -1,0 +1,56 @@
+---
+layout: docs
+toc_group: native-image
+link_title: Certificate Management in Native Image
+permalink: /reference-manual/native-image/CertificateManagement/
+---
+# Certificate Management in Native Image
+
+Native-image provides multiple ways to specify the certificate file used to
+define the default trusted KeyStore. In the following sections we describe the
+available buildtime and runtime options. Note the default behavior for
+native-image is to capture and use the default trusted KeyStore from the
+buildtime host environment.
+
+## Buildtime Options
+
+During the image building process, native-image captures the host environment's
+default trusted KeyStore and embeds it into the native image. This KeyStore is
+by default created from the root certificate file provided within the JDK, but
+can be changed to use a different certificate file by setting the buildtime
+system property "javax.net.ssl.trustStore" (see [Properties](Properties.md) for
+how to do so).
+
+Since the contents of the buildtime certificate file is embedded into the image
+executable, the file itself does not need to present in the target environment.
+
+## Runtime Options
+
+The certificate file can also be changed dynamically at runtime via setting
+the "javax.net.ssl.trustStore\*" system properties.
+
+If any of the following system properties are set during image execution,
+native-image also requires "javax.net.ssl.trustStore" to be set and for it
+to point to an accessible certificate file:
+- javax.net.ssl.trustStore
+- javax.net.ssl.trustStoreType
+- javax.net.ssl.trustStoreProvider
+- javax.net.ssl.trustStorePassword
+
+If any of these properties are set and "javax.net.ssl.trustStore" does not point
+to an accessible file, then an UnsupportedFeatureError will be thrown.
+
+Note that this behavior is different than the JVM; while in the event of an
+unset/invalid "javax.net.ssl.trustStore" system property the JVM will attempt to
+fallback to use a certificate file shipped within the JDK, such files will not
+be present alongside the image executable and hence cannot be used as a
+fallback.
+
+During the execution, it also possible to dynamically change the
+"javax.net.ssl.trustStore\*" properties and for the default trusted KeyStore to be
+updated accordingly.
+
+Finally, whenever all of the "javax.net.ssl.trustStore\*" system properities
+listed above are unset, the default trusted KeyStore will be the one captured
+during buildtime, as described in the [prior section](#buildtime-options).
+

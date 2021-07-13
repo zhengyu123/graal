@@ -29,6 +29,7 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.c.function.CodePointer;
+import org.graalvm.nativeimage.c.struct.RawField;
 import org.graalvm.nativeimage.c.struct.SizeOf;
 import org.graalvm.word.ComparableWord;
 import org.graalvm.word.UnsignedWord;
@@ -61,6 +62,8 @@ public class ImageCodeInfo {
     @UnknownObjectField(types = {byte[].class}) byte[] codeInfoIndex;
     @UnknownObjectField(types = {byte[].class}) byte[] codeInfoEncodings;
     @UnknownObjectField(types = {byte[].class}) byte[] referenceMapEncoding;
+    @UnknownObjectField(types = {byte[].class}) byte[] methodDataEncoding;
+    @UnknownObjectField(types = {byte[].class}) byte[] methodDataIndexEncoding;
     @UnknownObjectField(types = {byte[].class}) byte[] frameInfoEncodings;
     @UnknownObjectField(types = {Object[].class}) Object[] frameInfoObjectConstants;
     @UnknownObjectField(types = {Class[].class}) Class<?>[] frameInfoSourceClasses;
@@ -94,6 +97,8 @@ public class ImageCodeInfo {
         info.setCodeInfoIndex(NonmovableArrays.fromImageHeap(codeInfoIndex));
         info.setCodeInfoEncodings(NonmovableArrays.fromImageHeap(codeInfoEncodings));
         info.setStackReferenceMapEncoding(NonmovableArrays.fromImageHeap(referenceMapEncoding));
+        info.setMethodReflectionMetadataEncoding(NonmovableArrays.fromImageHeap(methodDataEncoding));
+        info.setMethodReflectionMetadataIndexEncoding(NonmovableArrays.fromImageHeap(methodDataIndexEncoding));
         info.setFrameInfoEncodings(NonmovableArrays.fromImageHeap(frameInfoEncodings));
         info.setFrameInfoObjectConstants(NonmovableArrays.fromImageHeap(frameInfoObjectConstants));
         info.setFrameInfoSourceClasses(NonmovableArrays.fromImageHeap(frameInfoSourceClasses));
@@ -148,6 +153,16 @@ public class ImageCodeInfo {
         }
 
         @Override
+        public NonmovableArray<Byte> getMethodReflectionMetadataEncoding() {
+            return NonmovableArrays.fromImageHeap(methodDataEncoding);
+        }
+
+        @Override
+        public NonmovableArray<Byte> getMethodReflectionMetadataIndexEncoding() {
+            return NonmovableArrays.fromImageHeap(methodDataIndexEncoding);
+        }
+
+        @Override
         public void setCodeStart(CodePointer value) {
             codeStart = value;
         }
@@ -195,6 +210,16 @@ public class ImageCodeInfo {
         @Override
         public void setStackReferenceMapEncoding(NonmovableArray<Byte> array) {
             referenceMapEncoding = NonmovableArrays.getHostedArray(array);
+        }
+
+        @Override
+        public void setMethodReflectionMetadataEncoding(NonmovableArray<Byte> array) {
+            methodDataEncoding = NonmovableArrays.getHostedArray(array);
+        }
+
+        @Override
+        public void setMethodReflectionMetadataIndexEncoding(NonmovableArray<Byte> array) {
+            methodDataIndexEncoding = NonmovableArrays.getHostedArray(array);
         }
 
         @Override

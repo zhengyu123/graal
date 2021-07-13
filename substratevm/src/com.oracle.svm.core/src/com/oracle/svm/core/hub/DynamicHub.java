@@ -48,11 +48,19 @@ import java.net.URL;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import com.oracle.svm.core.annotate.Inject;
+import com.oracle.svm.core.annotate.RecomputeFieldValue;
+import com.oracle.svm.core.code.CodeInfo;
+import com.oracle.svm.core.code.CodeInfoEncoder;
+import com.oracle.svm.core.code.CodeInfoTable;
+import com.oracle.svm.core.code.RuntimeCodeInfoAccess;
 import org.graalvm.compiler.core.common.NumUtil;
 import org.graalvm.compiler.core.common.SuppressFBWarnings;
 import org.graalvm.compiler.serviceprovider.JavaVersionUtil;
@@ -90,7 +98,11 @@ import com.oracle.svm.util.ReflectionUtil;
 import com.oracle.svm.util.ReflectionUtil.ReflectionUtilError;
 
 import jdk.vm.ci.meta.JavaKind;
+import sun.reflect.generics.repository.ConstructorRepository;
+import sun.reflect.generics.repository.MethodRepository;
 import sun.security.util.SecurityConstants;
+
+import static com.oracle.svm.core.annotate.TargetElement.CONSTRUCTOR_NAME;
 
 @Hybrid(canHybridFieldsBeDuplicated = false)
 @Substitute
@@ -1090,6 +1102,7 @@ public final class DynamicHub implements JavaKind.FormatWithToString, AnnotatedE
     static final class Target_java_lang_Class_MethodArray {
     }
 
+    private boolean parsedImageRD = false;
     private ReflectionData rd = ReflectionData.EMPTY;
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -1182,6 +1195,7 @@ public final class DynamicHub implements JavaKind.FormatWithToString, AnnotatedE
 
     @Substitute
     private Constructor<?>[] privateGetDeclaredConstructors(boolean publicOnly) {
+        maybeParseReflectionMetadata();
         return publicOnly ? rd.publicConstructors : rd.declaredConstructors;
     }
 
@@ -1192,7 +1206,79 @@ public final class DynamicHub implements JavaKind.FormatWithToString, AnnotatedE
 
     @Substitute
     private Method[] privateGetDeclaredMethods(boolean publicOnly) {
+        maybeParseReflectionMetadata();
         return publicOnly ? rd.declaredPublicMethods : rd.declaredMethods;
+    }
+
+    private void maybeParseReflectionMetadata() {
+        if (parsedImageRD) {
+            return;
+        }
+
+        CodeInfo info = CodeInfoTable.getImageCodeInfo();
+        CodeInfoEncoder.MethodData[] data = CodeInfoTable.getMethodMetadata(info, typeID);
+
+        List<Method> newDeclaredMethodsList = new ArrayList<>();
+        List<Method> newPublicMethodsList = new ArrayList<>();
+        List<Constructor<?>> newDeclaredConstructorsList = new ArrayList<>();
+        List<Constructor<?>> newPublicConstructorsList = new ArrayList<>();
+        List<Method> newDeclaredPublicMethodsList = new ArrayList<>();
+
+        for (CodeInfoEncoder.MethodData md : data) {
+            if (name.equals("<init>")) {
+                Target_java_lang_reflect_Constructor cons = new Target_java_lang_reflect_Constructor();
+                cons.constructor(md.declaringClass, md.paramTypes, md.exceptionTypes, md.modifiers, -1, null, null, null);
+                Constructor<?> c = SubstrateUtil.cast(cons, Constructor.class);
+                for (Constructor<?> c2 : rd.declaredConstructors) {
+                    if (Arrays.equals(c.getParameterTypes(), c2.getParameterTypes())) {
+                        continue;
+                    }
+                }
+                newDeclaredConstructorsList.add(c);
+                if (Modifier.isPublic(c.getModifiers())) {
+                    newPublicConstructorsList.add(c);
+                }
+            } else {
+                Target_java_lang_reflect_Method meth = new Target_java_lang_reflect_Method();
+                meth.constructor(md.declaringClass, md.name, md.paramTypes, md.returnType, md.exceptionTypes, md.modifiers, -1, null, null, null, null);
+                Method m = SubstrateUtil.cast(meth, Method.class);
+                for (Method m2 : rd.declaredMethods) {
+                    if (m.getName().equals(m2.getName()) && Arrays.equals(m.getParameterTypes(), m2.getParameterTypes())) {
+                        continue;
+                    }
+                }
+                newDeclaredMethodsList.add(m);
+                if (Modifier.isPublic(m.getModifiers())) {
+                    newPublicMethodsList.add(m); // TODO add inherited methods
+                    newDeclaredPublicMethodsList.add(m);
+                }
+            }
+        }
+
+        Method[] newDeclaredMethods = new Method[rd.declaredMethods.length + newDeclaredMethodsList.size()];
+        System.arraycopy(rd.declaredMethods, 0, newDeclaredMethods, 0, rd.declaredMethods.length);
+        System.arraycopy(newDeclaredMethodsList.toArray(new Method[0]), 0, newDeclaredMethods, rd.declaredMethods.length, newDeclaredMethodsList.size());
+
+        Method[] newPublicMethods = new Method[rd.publicMethods.length + newPublicMethodsList.size()];
+        System.arraycopy(rd.publicMethods, 0, newPublicMethods, 0, rd.publicMethods.length);
+        System.arraycopy(newPublicMethodsList.toArray(new Method[0]), 0, newPublicMethods, rd.publicMethods.length, newPublicMethodsList.size());
+
+        Constructor<?>[] newDeclaredConstructors = new Constructor<?>[rd.declaredConstructors.length + newDeclaredConstructorsList.size()];
+        System.arraycopy(rd.declaredConstructors, 0, newDeclaredConstructors, 0, rd.declaredConstructors.length);
+        System.arraycopy(newDeclaredConstructorsList.toArray(new Constructor<?>[0]), 0, newDeclaredConstructors, rd.declaredConstructors.length, newDeclaredConstructorsList.size());
+
+        Constructor<?>[] newPublicConstructors = new Constructor<?>[rd.publicConstructors.length + newPublicConstructorsList.size()];
+        System.arraycopy(rd.publicConstructors, 0, newPublicConstructors, 0, rd.publicConstructors.length);
+        System.arraycopy(newPublicConstructorsList.toArray(new Constructor<?>[0]), 0, newPublicConstructors, rd.publicConstructors.length, newPublicConstructorsList.size());
+
+        Method[] newDeclaredPublicMethods = new Method[rd.declaredPublicMethods.length + newDeclaredPublicMethodsList.size()];
+        System.arraycopy(rd.declaredPublicMethods, 0, newDeclaredPublicMethods, 0, rd.declaredPublicMethods.length);
+        System.arraycopy(newDeclaredPublicMethodsList.toArray(new Method[0]), 0, newDeclaredPublicMethods, rd.declaredPublicMethods.length, newDeclaredPublicMethodsList.size());
+
+        rd = new ReflectionData(rd.declaredFields, rd.publicFields, rd.publicUnhiddenFields, newDeclaredMethods, newPublicMethods, newDeclaredConstructors, newPublicConstructors,
+                        rd.nullaryConstructor, rd.declaredPublicFields, newDeclaredPublicMethods, rd.declaredClasses, rd.publicClasses, rd.enclosingMethodOrConstructor, rd.recordComponents);
+
+        parsedImageRD = true;
     }
 
     @Substitute
@@ -1673,4 +1759,37 @@ final class Target_jdk_internal_reflect_ConstantPool {
 
 @TargetClass(className = "java.lang.reflect.RecordComponent", onlyWith = JDK16OrLater.class)
 final class Target_java_lang_reflect_RecordComponent {
+}
+
+@TargetClass(value = Method.class)
+final class Target_java_lang_reflect_Method {
+
+    @Alias
+    @TargetElement(name = CONSTRUCTOR_NAME)
+    public native void constructor(Class<?> declaringClass,
+                                            String name,
+                                            Class<?>[] parameterTypes,
+                                            Class<?> returnType,
+                                            Class<?>[] checkedExceptions,
+                                            int modifiers,
+                                            int slot,
+                                            String signature,
+                                            byte[] annotations,
+                                            byte[] parameterAnnotations,
+                                            byte[] annotationDefault);
+}
+
+@TargetClass(value = Constructor.class)
+final class Target_java_lang_reflect_Constructor {
+
+    @Alias
+    @TargetElement(name = CONSTRUCTOR_NAME)
+    public native void constructor(Class<?> declaringClass,
+                                            Class<?>[] parameterTypes,
+                                            Class<?>[] checkedExceptions,
+                                            int modifiers,
+                                            int slot,
+                                            String signature,
+                                            byte[] annotations,
+                                            byte[] parameterAnnotations);
 }

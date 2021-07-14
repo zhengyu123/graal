@@ -37,7 +37,7 @@ import com.oracle.svm.core.genscavenge.GCImpl;
 import com.oracle.svm.core.genscavenge.GreyToBlackObjectVisitor;
 import com.oracle.svm.core.genscavenge.HeapChunk;
 import com.oracle.svm.core.genscavenge.HeapImpl;
-import com.oracle.svm.core.genscavenge.HeapPolicy;
+import com.oracle.svm.core.genscavenge.HeapParameters;
 import com.oracle.svm.core.genscavenge.ObjectHeaderImpl;
 import com.oracle.svm.core.genscavenge.Space;
 import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
@@ -131,7 +131,7 @@ public class CardTableBasedRememberedSet implements RememberedSet {
     @Override
     @AlwaysInline("GC performance")
     public void dirtyCardIfNecessary(Object holderObject, Object object) {
-        if (HeapPolicy.getMaxSurvivorSpaces() == 0 || holderObject == null || object == null || GCImpl.getGCImpl().isCompleteCollection() ||
+        if (HeapParameters.getMaxSurvivorSpaces() == 0 || holderObject == null || object == null || GCImpl.getGCImpl().isCompleteCollection() ||
                         !HeapImpl.getHeapImpl().getYoungGeneration().contains(object)) {
             return;
         }

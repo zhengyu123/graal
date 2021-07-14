@@ -197,29 +197,41 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
                     processedClasses.add(originalClass);
                     access.requireAnalysisIteration();
                 }
+                System.out.println("rdb 1");
                 if (type.getWrappedWithoutResolve() instanceof AnnotationSubstitutionType) {
                     /*
                      * Proxy classes for annotations present the annotation default methods and
                      * fields as their own.
                      */
+                    System.out.println("rdb 2");
                     ResolvedJavaType annotationType = ((AnnotationSubstitutionType) type.getWrappedWithoutResolve()).getAnnotationInterfaceType();
+                    System.out.println("rdb 3");
                     Class<?> annotationClass = access.getUniverse().lookup(annotationType).getJavaClass();
+                    System.out.println("rdb 4");
                     if (processedClasses.contains(annotationClass)) {
+                        System.out.println("rdb 5");
                         try {
                             for (Field field : annotationFields.getOrDefault(annotationClass, new Field[0])) {
+                                System.out.println("rdb 6");
                                 register(false, originalClass.getDeclaredField(field.getName()));
+                                System.out.println("rdb 7");
                             }
                             for (Method method : annotationMethods.getOrDefault(annotationClass, new Method[0])) {
+                                System.out.println("rdb 8");
                                 register(originalClass.getDeclaredMethod(method.getName(), method.getParameterTypes()));
+                                System.out.println("rdb 9");
                             }
                         } catch (NoSuchFieldException | NoSuchMethodException e) {
+                            System.out.println("rdb 10");
                             /*
                              * The annotation member is not present in the proxy class so we don't
                              * add it.
                              */
                         }
                     }
+                    System.out.println("rdb 11");
                 }
+                System.out.println("rdb 12");
             }
         }
     }
@@ -302,16 +314,23 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
         }
         hub.setReflectionData(reflectionData);
 
+        System.out.println("rdb 20");
         if (type.isAnnotation()) {
+            System.out.println("rdb 21");
             /*
              * Cache the annotation members to allow proxy classes seen later to include those in
              * their own reflection data
              */
             annotationFields.put(clazz, filterFields(accessors.getDeclaredFields(originalReflectionData), reflectionFields, access));
+            System.out.println("rdb 22");
             annotationMethods.put(clazz, filterMethods(accessors.getDeclaredMethods(originalReflectionData), reflectionMethods, access));
+            System.out.println("rdb 23");
             processedClasses.add(clazz);
+            System.out.println("rdb 24");
             access.requireAnalysisIteration(); /* Need the proxy class to see the added members */
+            System.out.println("rdb 25");
         }
+        System.out.println("rdb 26");
     }
 
     private static <T> T query(Callable<T> callable, List<Throwable> errors) {

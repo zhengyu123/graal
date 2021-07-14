@@ -815,15 +815,22 @@ final class BreakpointInterceptor {
         JNIObjectHandle lookup = getObjectArgument(0);
         JNIObjectHandle fieldName = getObjectArgument(1);
         JNIObjectHandle type = getObjectArgument(2);
+        System.out.println("brin 1");
         JNIObjectHandle declaringClass = hasDeclaringClass ? getObjectArgument(3) : type;
+        System.out.println("brin 2");
 
         JNIObjectHandle result;
         if (hasDeclaringClass) {
+            System.out.println("brin 3a");
             result = Support.callStaticObjectMethodLLLL(jni, bp.clazz, bp.method, lookup, fieldName, type, declaringClass);
+            System.out.println("brin 4a");
         } else {
+            System.out.println("brin 3b");
             result = Support.callStaticObjectMethodLLL(jni, bp.clazz, bp.method, lookup, fieldName, type);
+            System.out.println("brin 4b");
         }
         result = shouldIncludeMethod(jni, result, agent.handles().javaLangIllegalAccessError);
+        System.out.println("brin 5");
 
         String name = fromJniString(jni, fieldName);
         traceBreakpoint(jni, declaringClass, nullHandle(), callerClass, "findFieldHandle", result.notEqual(nullHandle()), state.getFullStackTraceOrNull(), name);
@@ -1366,6 +1373,7 @@ final class BreakpointInterceptor {
     }
 
     private static BreakpointSpecification optionalBrk(String className, String methodName, String signature, BreakpointHandler handler) {
+        System.out.println("brin 6: " + methodName + " " + signature);
         return new BreakpointSpecification(className, methodName, signature, handler, true);
     }
 

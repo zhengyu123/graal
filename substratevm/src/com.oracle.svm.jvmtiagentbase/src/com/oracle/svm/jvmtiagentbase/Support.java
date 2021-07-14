@@ -198,25 +198,33 @@ public final class Support {
     }
 
     private static JNIObjectHandle maybeUnwrapProxy(JNIEnvironment env, JNIObjectHandle clazz) {
+        System.out.println("supp 1");
         boolean isProxy = Support.callStaticBooleanMethodL(env, JvmtiAgentBase.singleton().handles().javaLangReflectProxy, JvmtiAgentBase.singleton().handles().javaLangReflectProxyIsProxyClass,
                         clazz);
         if (clearException(env) || !isProxy) {
             return clazz;
         }
+        System.out.println("supp 2");
 
         JNIObjectHandle interfaces = Support.callObjectMethod(env, clazz, JvmtiAgentBase.singleton().handles().javaLangClassGetInterfaces);
         if (clearException(env) || interfaces.equal(nullHandle())) {
             return clazz;
         }
+        System.out.println("supp 3");
 
         int interfacesLength = Support.jniFunctions().getGetArrayLength().invoke(env, interfaces);
+        System.out.println("supp 4");
         guarantee(!clearException(env));
+        System.out.println("supp 5");
         if (interfacesLength != 1) {
             return clazz;
         }
 
+        System.out.println("supp 6");
         JNIObjectHandle iface = Support.jniFunctions().getGetObjectArrayElement().invoke(env, interfaces, 0);
+        System.out.println("supp 7");
         guarantee(!clearException(env) && iface.notEqual(nullHandle()));
+        System.out.println("supp 8");
 
         return iface;
     }

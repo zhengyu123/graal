@@ -96,7 +96,9 @@ public class NativeImageAgentJNIHandleSet extends JNIHandleSet {
         javaLangObjectGetClass = getMethodId(env, javaLangObject, "getClass", "()Ljava/lang/Class;", false);
 
         javaLangIllegalAccessException = newClassGlobalRef(env, "java/lang/IllegalAccessException");
+        System.out.println("handle 1");
         javaLangIllegalAccessError = newClassGlobalRef(env, "java/lang/IllegalAccessError");
+        System.out.println("handle 2");
         javaLangInvokeWrongMethodTypeException = newClassGlobalRef(env, "java/lang/invoke/WrongMethodTypeException");
         javaLangIllegalArgumentException = newClassGlobalRef(env, "java/lang/IllegalArgumentException");
     }

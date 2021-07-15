@@ -133,7 +133,7 @@ public final class HeapParameters {
         return WordFactory.unsigned(bytes).multiply(1024).multiply(1024);
     }
 
-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    @Fold
     public static int getMaxSurvivorSpaces() {
         return Options.MaxSurvivorSpaces.getValue();
     }

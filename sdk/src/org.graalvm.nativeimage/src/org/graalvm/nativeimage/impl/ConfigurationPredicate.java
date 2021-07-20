@@ -27,7 +27,7 @@ package org.graalvm.nativeimage.impl;
 import java.util.Objects;
 
 public class ConfigurationPredicate {
-    private String typeReachability;
+    private final String typeReachability;
     public static ConfigurationPredicate DEFAULT_CONFIGRATION_PREDICATE = new ConfigurationPredicate("java.lang.Object");
 
     public static ConfigurationPredicate create(String typeReachability) {
@@ -39,6 +39,10 @@ public class ConfigurationPredicate {
 
     private ConfigurationPredicate(String typeReachability) {
         this.typeReachability = typeReachability;
+    }
+
+    public String getTypeReachability() {
+        return typeReachability;
     }
 
     @Override

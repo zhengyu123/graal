@@ -35,22 +35,26 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.hosted.Feature.DuringAnalysisAccess;
 import org.graalvm.nativeimage.impl.ConfigurationPredicate;
 import org.graalvm.nativeimage.impl.RuntimeReflectionSupport;
 
 import com.oracle.graal.pointsto.meta.AnalysisType;
+import com.oracle.svm.core.TypeResult;
 import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.jdk.RecordSupport;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.core.util.VMError;
+import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.FeatureImpl.DuringAnalysisAccessImpl;
 import com.oracle.svm.hosted.FeatureImpl.FeatureAccessImpl;
 import com.oracle.svm.hosted.substitute.SubstitutionReflectivityFilter;
@@ -72,6 +76,7 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
     private final Set<Field> reflectionFields = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     /* Keep track of classes already processed for reflection. */
+    private final Map<String, List<Runnable>> reachabilityHandlers = new ConcurrentHashMap<>();
     private final Set<Class<?>> processedClasses = new HashSet<>();
 
     private final ReflectionDataAccessors accessors;
@@ -111,6 +116,19 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
     @Override
     public void register(ConfigurationPredicate predicate, Class<?>... classes) {
         checkNotSealed();
+        registerPredicated(predicate, () -> registerClasses(classes));
+    }
+
+    private void registerPredicated(ConfigurationPredicate predicate, Runnable runnable) {
+        if (ConfigurationPredicate.DEFAULT_CONFIGRATION_PREDICATE.equals(predicate)) {
+            runnable.run();
+        } else {
+            List<Runnable> handlers = reachabilityHandlers.computeIfAbsent(predicate.getTypeReachability(), key -> new ArrayList<>());
+            handlers.add(runnable);
+        }
+    }
+
+    private void registerClasses(Class<?>[] classes) {
         for (Class<?> clazz : classes) {
             if (reflectionClasses.add(clazz)) {
                 modifiedClasses.add(clazz);
@@ -121,6 +139,10 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
     @Override
     public void register(ConfigurationPredicate predicate, Executable... methods) {
         checkNotSealed();
+        registerPredicated(predicate, () -> registerMethods(methods));
+    }
+
+    private void registerMethods(Executable[] methods) {
         for (Executable method : methods) {
             if (reflectionMethods.add(method)) {
                 modifiedClasses.add(method.getDeclaringClass());
@@ -131,6 +153,10 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
     @Override
     public void register(ConfigurationPredicate predicate, boolean finalIsWritable, Field... fields) {
         checkNotSealed();
+        registerPredicated(predicate, () -> registerFields(fields));
+    }
+
+    private void registerFields(Field[] fields) {
         // Unsafe and write accesses are always enabled for fields because accessors use Unsafe.
         for (Field field : fields) {
             if (reflectionFields.add(field)) {
@@ -145,8 +171,17 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
         }
     }
 
+    void registerPredicatedConfig(Feature.BeforeAnalysisAccess b) {
+        for (Map.Entry<String, List<Runnable>> stringListEntry : reachabilityHandlers.entrySet()) {
+            TypeResult<Class<?>> typeResult = ((FeatureImpl.BeforeAnalysisAccessImpl) b).getImageClassLoader().findClass(stringListEntry.getKey());
+            b.registerReachabilityHandler(access -> stringListEntry.getValue().forEach(Runnable::run), typeResult.get());
+        }
+        reachabilityHandlers.clear();
+    }
+
     protected void duringAnalysis(DuringAnalysisAccess a) {
         DuringAnalysisAccessImpl access = (DuringAnalysisAccessImpl) a;
+        registerPredicatedConfig(a);
         processReachableTypes(access);
         processRegisteredElements(access);
     }

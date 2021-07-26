@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.oracle.svm.core.jdk.localization.LocalizationSupport;
+import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.core.util.json.JSONParser;
 import com.oracle.svm.core.util.json.JSONParserException;
 
@@ -115,6 +116,7 @@ public class ResourceConfigurationParser extends ConfigurationParser {
                             .stream()
                             .map(ResourceConfigurationParser::parseLocale)
                             .collect(Collectors.toList());
+            UserError.guarantee(!asList.isEmpty(), "List of locales for %s is empty", basename);
             registry.addResourceBundles(basename, asList);
         } else {
             registry.addResourceBundles(basename);
@@ -122,6 +124,7 @@ public class ResourceConfigurationParser extends ConfigurationParser {
         Object classNames = resource.get("classNames");
         if (classNames != null) {
             List<Object> asList = asList(classNames, "Attribute 'classNames' must be a list of classes");
+            UserError.guarantee(!asList.isEmpty(), "List of classnames for %s is empty", basename);
             for (Object o : asList) {
                 String className = asString(o, "Elements of 'classNames' must of strings.");
                 registry.addClassBasedResourceBundle(className);

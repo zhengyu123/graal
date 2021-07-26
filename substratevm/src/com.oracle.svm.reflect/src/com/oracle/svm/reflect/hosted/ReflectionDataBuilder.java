@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,6 +47,7 @@ import org.graalvm.nativeimage.impl.ConfigurationPredicate;
 import org.graalvm.nativeimage.impl.RuntimeReflectionSupport;
 
 import com.oracle.graal.pointsto.meta.AnalysisType;
+import com.oracle.svm.core.PredicatedReflectionSupport;
 import com.oracle.svm.core.TypeResult;
 import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
@@ -60,7 +60,7 @@ import com.oracle.svm.hosted.FeatureImpl.FeatureAccessImpl;
 import com.oracle.svm.hosted.substitute.SubstitutionReflectivityFilter;
 import com.oracle.svm.util.ReflectionUtil;
 
-public class ReflectionDataBuilder implements RuntimeReflectionSupport {
+public class ReflectionDataBuilder extends PredicatedReflectionSupport implements RuntimeReflectionSupport {
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
     public static final Method[] EMPTY_METHODS = new Method[0];
@@ -75,8 +75,6 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
     private final Set<Executable> reflectionMethods = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<Field> reflectionFields = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    /* Keep track of classes already processed for reflection. */
-    private final Map<String, List<Runnable>> reachabilityHandlers = new ConcurrentHashMap<>();
     private final Set<Class<?>> processedClasses = new HashSet<>();
 
     private final ReflectionDataAccessors accessors;
@@ -117,15 +115,6 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
     public void register(ConfigurationPredicate predicate, Class<?>... classes) {
         checkNotSealed();
         registerPredicated(predicate, () -> registerClasses(classes));
-    }
-
-    private void registerPredicated(ConfigurationPredicate predicate, Runnable runnable) {
-        if (ConfigurationPredicate.DEFAULT_CONFIGRATION_PREDICATE.equals(predicate)) {
-            runnable.run();
-        } else {
-            List<Runnable> handlers = reachabilityHandlers.computeIfAbsent(predicate.getTypeReachability(), key -> new ArrayList<>());
-            handlers.add(runnable);
-        }
     }
 
     private void registerClasses(Class<?>[] classes) {
@@ -171,17 +160,14 @@ public class ReflectionDataBuilder implements RuntimeReflectionSupport {
         }
     }
 
-    void registerPredicatedConfig(Feature.BeforeAnalysisAccess b) {
-        for (Map.Entry<String, List<Runnable>> stringListEntry : reachabilityHandlers.entrySet()) {
-            TypeResult<Class<?>> typeResult = ((FeatureImpl.BeforeAnalysisAccessImpl) b).getImageClassLoader().findClass(stringListEntry.getKey());
-            b.registerReachabilityHandler(access -> stringListEntry.getValue().forEach(Runnable::run), typeResult.get());
-        }
-        reachabilityHandlers.clear();
+    @Override
+    protected TypeResult<Class<?>> findClass(Feature.BeforeAnalysisAccess b, String className) {
+        return ((FeatureImpl.BeforeAnalysisAccessImpl) b).getImageClassLoader().findClass(className);
     }
 
     protected void duringAnalysis(DuringAnalysisAccess a) {
         DuringAnalysisAccessImpl access = (DuringAnalysisAccessImpl) a;
-        registerPredicatedConfig(a);
+        registerPredicatedConfiguration(a);
         processReachableTypes(access);
         processRegisteredElements(access);
     }

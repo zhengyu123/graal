@@ -93,7 +93,7 @@ public final class ReflectionFeature implements GraalFeature {
 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
-        reflectionData.registerPredicatedConfig(access);
+        reflectionData.registerPredicatedConfiguration(access);
     }
 
     @Override

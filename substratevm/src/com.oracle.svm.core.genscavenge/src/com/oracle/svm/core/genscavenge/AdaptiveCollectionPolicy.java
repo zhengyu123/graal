@@ -77,10 +77,10 @@ abstract class AdaptiveCollectionPolicy extends AbstractCollectionPolicy {
     static final int SURVIVOR_PADDING = 3;
     static final int INITIAL_TENURING_THRESHOLD = 7;
     static final int PROMOTED_PADDING = 3;
-    static final int YOUNG_GENERATION_SIZE_SUPPLEMENT = 80;
+    static final int YOUNG_GENERATION_SIZE_SUPPLEMENT = 0;
     static final int TENURED_GENERATION_SIZE_SUPPLEMENT_DECAY = 2;
     static final int YOUNG_GENERATION_SIZE_SUPPLEMENT_DECAY = 8;
-    static final int TENURED_GENERATION_SIZE_SUPPLEMENT = 80;
+    static final int TENURED_GENERATION_SIZE_SUPPLEMENT = 0;
     static final int TENURED_GENERATION_SIZE_INCREMENT = 20;
     static final int MIN_SURVIVOR_RATIO = 3;
     /**
@@ -99,7 +99,7 @@ abstract class AdaptiveCollectionPolicy extends AbstractCollectionPolicy {
     static final int NEW_RATIO = 2; // HotSpot: -XX:NewRatio
     static final int LARGE_MEMORY_MAX_HEAP_PERCENT = 25; // -XX:MaxRAMPercentage
     static final int SMALL_MEMORY_MAX_HEAP_PERCENT = 50; // -XX:MinRAMPercentage
-    static final double INITIAL_HEAP_MEMORY_PERCENT = 1.5625; // -XX:InitialRAMPercentage
+    static final double INITIAL_HEAP_MEMORY_PERCENT = 1; // -XX:InitialRAMPercentage, default 1.5625
 
     private final Timer minorTimer = new Timer("minor/between minor");
     private final AdaptiveWeightedAverage avgMinorGcCost = new AdaptiveWeightedAverage(ADAPTIVE_TIME_WEIGHT);

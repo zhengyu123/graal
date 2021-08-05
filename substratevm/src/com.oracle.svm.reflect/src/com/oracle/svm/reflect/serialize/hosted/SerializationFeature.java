@@ -84,7 +84,7 @@ public class SerializationFeature implements Feature {
             if (serializationTargetClass != null) {
                 deniedClasses.put(serializationTargetClass, true);
             }
-        });
+        }, ConfigurationFiles.Options.StrictConfiguration.getValue());
         ImageClassLoader imageClassLoader = access.getImageClassLoader();
         ConfigurationParserUtils.parseAndRegisterConfigurations(denyCollectorParser, imageClassLoader, "serialization",
                         ConfigurationFiles.Options.SerializationDenyConfigurationFiles, ConfigurationFiles.Options.SerializationDenyConfigurationResources,
@@ -118,7 +118,7 @@ public class SerializationFeature implements Feature {
             }
         };
 
-        SerializationConfigurationParser parser = new SerializationConfigurationParser(serializationAdapter);
+        SerializationConfigurationParser parser = new SerializationConfigurationParser(serializationAdapter, ConfigurationFiles.Options.StrictConfiguration.getValue());
         loadedConfigurations = ConfigurationParserUtils.parseAndRegisterConfigurations(parser, imageClassLoader, "serialization",
                         ConfigurationFiles.Options.SerializationConfigurationFiles, ConfigurationFiles.Options.SerializationConfigurationResources,
                         ConfigurationFile.SERIALIZATION.getFileName());

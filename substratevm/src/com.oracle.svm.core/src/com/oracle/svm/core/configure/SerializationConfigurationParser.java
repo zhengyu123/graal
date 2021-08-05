@@ -39,7 +39,8 @@ public class SerializationConfigurationParser extends ConfigurationParser {
 
     private final SerializationParserFunction consumer;
 
-    public SerializationConfigurationParser(SerializationParserFunction consumer) {
+    public SerializationConfigurationParser(SerializationParserFunction consumer, boolean strictConfiguration) {
+        super(strictConfiguration);
         this.consumer = consumer;
     }
 

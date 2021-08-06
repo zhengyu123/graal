@@ -33,6 +33,7 @@ import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.core.annotate.AlwaysInline;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk.AlignedHeader;
+import com.oracle.svm.core.genscavenge.GCImpl;
 import com.oracle.svm.core.genscavenge.GreyToBlackObjectVisitor;
 import com.oracle.svm.core.genscavenge.HeapChunk;
 import com.oracle.svm.core.genscavenge.HeapImpl;
@@ -130,8 +131,22 @@ public class CardTableBasedRememberedSet implements RememberedSet {
     @Override
     @AlwaysInline("GC performance")
     public void dirtyCardIfNecessary(Object holderObject, Object object) {
-        if (HeapParameters.getMaxSurvivorSpaces() == 0 || holderObject == null || object == null ||
-                        !HeapImpl.getHeapImpl().getYoungGeneration().contains(object)) {
+        if (holderObject == null || object == null) {
+            return;
+        }
+        // We dirty the cards of ...
+        if (HeapParameters.getMaxSurvivorSpaces() != 0 && HeapImpl.getHeapImpl().getYoungGeneration().contains(object)) {
+            /*
+             * ...references from the old generation to the young generation, unless there cannot be
+             * any such references if we do not use survivor spaces and so all objects are promoted
+             * to the old generation. (We avoid an extra old generation check and might remark a few
+             * image heap cards, too)
+             */
+        } else if (HeapImpl.usesImageHeapCardMarking() && GCImpl.getGCImpl().isCompleteCollection() && HeapImpl.getHeapImpl().isInImageHeap(holderObject)) {
+            // ...references from the image heap to the runtime heap, but we clean and remark those
+            // only during complete collections.
+            assert !HeapImpl.getHeapImpl().isInImageHeap(object) : "should never be called for references to image heap objects";
+        } else {
             return;
         }
 
@@ -147,26 +162,26 @@ public class CardTableBasedRememberedSet implements RememberedSet {
     }
 
     @Override
-    public void walkDirtyObjects(AlignedHeader chunk, GreyToBlackObjectVisitor visitor) {
-        AlignedChunkRememberedSet.walkDirtyObjects(chunk, visitor);
+    public void walkDirtyObjects(AlignedHeader chunk, GreyToBlackObjectVisitor visitor, boolean clean) {
+        AlignedChunkRememberedSet.walkDirtyObjects(chunk, visitor, clean);
     }
 
     @Override
-    public void walkDirtyObjects(UnalignedHeader chunk, GreyToBlackObjectVisitor visitor) {
-        UnalignedChunkRememberedSet.walkDirtyObjects(chunk, visitor);
+    public void walkDirtyObjects(UnalignedHeader chunk, GreyToBlackObjectVisitor visitor, boolean clean) {
+        UnalignedChunkRememberedSet.walkDirtyObjects(chunk, visitor, clean);
     }
 
     @Override
-    public void walkDirtyObjects(Space space, GreyToBlackObjectVisitor visitor) {
+    public void walkDirtyObjects(Space space, GreyToBlackObjectVisitor visitor, boolean clean) {
         AlignedHeader aChunk = space.getFirstAlignedHeapChunk();
         while (aChunk.isNonNull()) {
-            walkDirtyObjects(aChunk, visitor);
+            walkDirtyObjects(aChunk, visitor, clean);
             aChunk = HeapChunk.getNext(aChunk);
         }
 
         UnalignedHeader uChunk = space.getFirstUnalignedHeapChunk();
         while (uChunk.isNonNull()) {
-            walkDirtyObjects(uChunk, visitor);
+            walkDirtyObjects(uChunk, visitor, clean);
             uChunk = HeapChunk.getNext(uChunk);
         }
     }

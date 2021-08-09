@@ -60,32 +60,12 @@ public abstract class JNIHandleSet {
     private boolean destroyed = false;
 
     final JNIMethodId javaLangClassGetName;
-    final JNIMethodId javaLangClassGetInterfaces;
-    final JNIObjectHandle javaLangReflectProxy;
-    final JNIMethodId javaLangReflectProxyIsProxyClass;
 
     public JNIHandleSet(JNIEnvironment env) {
         JNIObjectHandle javaLangClass = findClass(env, "java/lang/Class");
         try (CTypeConversion.CCharPointerHolder name = Support.toCString("getName"); CTypeConversion.CCharPointerHolder signature = Support.toCString("()Ljava/lang/String;")) {
             javaLangClassGetName = Support.jniFunctions().getGetMethodID().invoke(env, javaLangClass, name.get(), signature.get());
             guarantee(javaLangClassGetName.isNonNull());
-        }
-        System.out.println("jhs 1");
-        try (CTypeConversion.CCharPointerHolder name = Support.toCString("getInterfaces"); CTypeConversion.CCharPointerHolder signature = Support.toCString("()[Ljava/lang/Class;")) {
-            javaLangClassGetInterfaces = Support.jniFunctions().getGetMethodID().invoke(env, javaLangClass, name.get(), signature.get());
-            guarantee(javaLangClassGetInterfaces.isNonNull());
-        }
-        System.out.println("jhs 2");
-        javaLangReflectProxy = newClassGlobalRef(env, "java/lang/reflect/Proxy");
-        System.out.println("jhs 3");
-        guarantee(javaLangReflectProxy.notEqual(nullHandle()));
-        System.out.println("jhs 4");
-        try (CTypeConversion.CCharPointerHolder name = Support.toCString("isProxyClass"); CTypeConversion.CCharPointerHolder signature = Support.toCString("(Ljava/lang/Class;)Z")) {
-            System.out.println("jhs 5");
-            javaLangReflectProxyIsProxyClass = Support.jniFunctions().getGetStaticMethodID().invoke(env, javaLangReflectProxy, name.get(), signature.get());
-            System.out.println("jhs 6");
-            guarantee(javaLangReflectProxyIsProxyClass.isNonNull());
-            System.out.println("jhs 7");
         }
     }
 
@@ -220,6 +200,17 @@ public abstract class JNIHandleSet {
             globalRefsLock.unlock();
         }
         return global;
+    }
+
+    /**
+     * Performs necessary transformations on a class handle to allow its handling by the agent.
+     *
+     * @param env JNI environment of the thread running the JVMTI callback.
+     * @param clazz Handle to the class.
+     * @return The potentially unwrapped class.
+     */
+    public JNIObjectHandle unwrapClass(JNIEnvironment env, JNIObjectHandle clazz) {
+        return clazz;
     }
 
     /**

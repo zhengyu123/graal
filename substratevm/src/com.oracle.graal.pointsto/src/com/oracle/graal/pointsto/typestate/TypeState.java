@@ -424,6 +424,11 @@ public abstract class TypeState {
     }
 
     public static TypeState forIntersection(BigBang bb, TypeState s1, TypeState s2) {
+        /*
+         * All filtered types (s1) must be marked as instantiated to ensures that the filter state
+         * (s2) has been updated before a type appears in the input, otherwise types can be missed.
+         */
+        assert !bb.extendedAsserts() || checkTypes(s1);
         if (s1.isEmpty()) {
             return s1;
         } else if (s1.isNull()) {
@@ -445,6 +450,11 @@ public abstract class TypeState {
     }
 
     public static TypeState forSubtraction(BigBang bb, TypeState s1, TypeState s2) {
+        /*
+         * All filtered types (s1) must be marked as instantiated to ensures that the filter state
+         * (s2) has been updated before a type appears in the input, otherwise types can be missed.
+         */
+        assert !bb.extendedAsserts() || checkTypes(s1);
         if (s1.isEmpty()) {
             return s1;
         } else if (s1.isNull()) {
@@ -463,6 +473,16 @@ public abstract class TypeState {
             assert s1 instanceof MultiTypeState && s2 instanceof MultiTypeState;
             return doSubtraction(bb, (MultiTypeState) s1, (MultiTypeState) s2);
         }
+    }
+
+    private static boolean checkTypes(TypeState state) {
+        for (AnalysisType type : state.types()) {
+            if (!type.isInstantiated()) {
+                System.out.println("Processing a type not yet marked as instantiated: " + type.getName());
+                return false;
+            }
+        }
+        return true;
     }
 
     /* Implementation of union. */
@@ -488,7 +508,7 @@ public abstract class TypeState {
             }
 
             /* Due to the test above the union set cannot be equal to any of the two arrays. */
-            assert !PointstoOptions.ExtendedAsserts.getValue(bb.getOptions()) || !Arrays.equals(resultObjects, s1.objects) && !Arrays.equals(resultObjects, s2.objects);
+            assert !bb.extendedAsserts() || !Arrays.equals(resultObjects, s1.objects) && !Arrays.equals(resultObjects, s2.objects);
 
             /* Create the resulting exact type state. */
             SingleTypeState result = new SingleTypeState(bb, resultCanBeNull, bb.analysisPolicy().makePopertiesForUnion(s1, s2), resultObjects);
@@ -552,7 +572,7 @@ public abstract class TypeState {
              * Due to the test above and to the fact that TypeStateUtils.union checks if one array
              * contains the other the union set cannot be equal to s1's objects slice.
              */
-            assert !PointstoOptions.ExtendedAsserts.getValue(bb.getOptions()) || !Arrays.equals(unionObjects, s1ObjectsSlice);
+            assert !bb.extendedAsserts() || !Arrays.equals(unionObjects, s1ObjectsSlice);
 
             /*
              * Replace the s1 objects slice of the same type as s2 with the union objects and create
@@ -886,7 +906,7 @@ public abstract class TypeState {
     }
 
     private static TypeState doIntersection(BigBang bb, SingleTypeState s1, MultiTypeState s2) {
-        assert !PointstoOptions.ExtendedAsserts.getValue(bb.getOptions()) || TypeStateUtils.isContextInsensitiveTypeState(s2) : "Current implementation limitation.";
+        assert !bb.extendedAsserts() || TypeStateUtils.isContextInsensitiveTypeState(s2) : "Current implementation limitation.";
 
         boolean resultCanBeNull = s1.canBeNull() && s2.canBeNull();
 
@@ -917,7 +937,7 @@ public abstract class TypeState {
     }
 
     private static TypeState doIntersection(BigBang bb, MultiTypeState s1, MultiTypeState s2) {
-        assert !PointstoOptions.ExtendedAsserts.getValue(bb.getOptions()) || TypeStateUtils.isContextInsensitiveTypeState(s2) : "Current implementation limitation.";
+        assert !bb.extendedAsserts() || TypeStateUtils.isContextInsensitiveTypeState(s2) : "Current implementation limitation.";
 
         boolean resultCanBeNull = s1.canBeNull() && s2.canBeNull();
 

@@ -120,6 +120,7 @@ public class AnalysisUniverse implements Universe {
     private final JavaKind wordKind;
     private final Platform platform;
     private AnalysisPolicy analysisPolicy;
+    private BigBang bigbang;
 
     public JavaKind getWordKind() {
         return wordKind;
@@ -368,6 +369,7 @@ public class AnalysisUniverse implements Universe {
              * it during constant folding.
              */
             AnalysisType declaringType = lookup(field.getDeclaringClass());
+            declaringType.registerAsReachable();
             declaringType.ensureInitialized();
         }
 
@@ -725,5 +727,13 @@ public class AnalysisUniverse implements Universe {
 
     public Platform getPlatform() {
         return platform;
+    }
+
+    public void setBigBang(BigBang bigbang) {
+        this.bigbang = bigbang;
+    }
+
+    public BigBang getBigbang() {
+        return bigbang;
     }
 }

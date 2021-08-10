@@ -28,19 +28,17 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Consumer;
 
 import org.graalvm.compiler.debug.GraalError;
 import org.graalvm.compiler.graph.Node;
@@ -53,7 +51,6 @@ import com.oracle.graal.pointsto.api.DefaultUnsafePartition;
 import com.oracle.graal.pointsto.api.PointstoOptions;
 import com.oracle.graal.pointsto.constraints.UnsupportedFeatureException;
 import com.oracle.graal.pointsto.flow.AllInstantiatedTypeFlow;
-import com.oracle.graal.pointsto.flow.TypeFlow;
 import com.oracle.graal.pointsto.flow.context.object.AnalysisObject;
 import com.oracle.graal.pointsto.flow.context.object.ConstantContextSensitiveObject;
 import com.oracle.graal.pointsto.infrastructure.OriginalClassProvider;
@@ -94,6 +91,7 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
     private final AtomicBoolean isInHeap = new AtomicBoolean();
     private final AtomicBoolean isAllocated = new AtomicBoolean();
     private final AtomicBoolean isReachable = new AtomicBoolean();
+    private final AtomicBoolean isAssignable = new AtomicBoolean();
     private boolean reachabilityListenerNotified;
     private boolean unsafeFieldsRecomputed;
     private boolean unsafeAccessedFieldsRegistered;
@@ -125,17 +123,6 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
      * {@link #uniqueConstant}.
      */
     private volatile ConstantContextSensitiveObject uniqueConstant;
-
-    /**
-     * Keeps track of the referenced types, i.e., concrete field types or array elements types
-     * discovered by the static analysis.
-     *
-     * This list is not update during the analysis and is filled lazily when requested through
-     * {@link #getReferencedTypes(BigBang)}. For complete results
-     * {@link #getReferencedTypes(BigBang)} should only be called when the base analysis has
-     * finished.
-     */
-    private List<AnalysisType> referencedTypes;
 
     /**
      * Cache for the resolved methods.
@@ -228,7 +215,6 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
         this.id = universe.nextTypeId.getAndIncrement();
         /* Set the context insensitive analysis object so that it has access to its type id. */
         this.contextInsensitiveAnalysisObject = new AnalysisObject(universe, this);
-        this.referencedTypes = null;
 
         assert getSuperclass() == null || getId() > getSuperclass().getId();
 
@@ -258,6 +244,8 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
     public void cleanupAfterAnalysis() {
         assignableTypes = null;
         assignableTypesNonNull = null;
+        assignableTypesState = null;
+        assignableTypesNonNullState = null;
         contextInsensitiveAnalysisObject = null;
         constantObjectsCache = null;
         uniqueConstant = null;
@@ -331,51 +319,28 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
     }
 
     /**
-     * Returns the list of referenced types, i.e., concrete field types or array elements types
-     * discovered by the static analysis.
-     *
-     * Since this list is not updated during the analysis, for complete results this should only be
-     * called when the base analysis has finished.
+     * We store both assignable type flows and assignable type states for each type. The type state
+     * is used in filters whereas the type flow is used to attach uses to the all-instantiated of a
+     * type. When updating the assignable list of a type it is important that the filters get have
+     * access to the new assignable types before this type starts flowing through the graphs,
+     * otherwise some types could be missed. Just adding a new assignable type to
+     * assignableTypes/assignableTypesNonNull without triggering an update of the uses is not
+     * enough. Since all type flows are updated concurrently that type could be propagated before a
+     * filter on a super-type is updated. Therefore, when a new type becomes assignable
+     * {@link #registerAsAssignable()} first updates
+     * assignableTypesState/assignableTypesNonNullState on all the super types to make sure the
+     * filters see the new type, then assignableTypes/assignableTypesNonNull are updated which leads
+     * to the propagation of the new type. Eventually the type flows and type states converge to the
+     * same set of types.
      */
-    public List<AnalysisType> getReferencedTypes(BigBang bb) {
 
-        if (referencedTypes == null) {
+    public AllInstantiatedTypeFlow assignableTypes = new AllInstantiatedTypeFlow(this, true);
+    public AllInstantiatedTypeFlow assignableTypesNonNull = new AllInstantiatedTypeFlow(this, false);
 
-            Set<AnalysisType> referencedTypesSet = new HashSet<>();
+    public TypeState assignableTypesState = TypeState.forNull();
+    public TypeState assignableTypesNonNullState = TypeState.forEmpty();
 
-            if (this.isArray()) {
-                if (this.getContextInsensitiveAnalysisObject().isObjectArray()) {
-                    /* Collect the types referenced through index store (for arrays). */
-                    for (AnalysisType type : getContextInsensitiveAnalysisObject().getArrayElementsFlow(bb, false).getState().types()) {
-                        /* Add the assignable types, as discovered by the static analysis. */
-                        type.getTypeFlow(bb, false).getState().types().forEach(referencedTypesSet::add);
-                    }
-                }
-            } else {
-                /* Collect the field referenced types. */
-                for (AnalysisField field : getInstanceFields(true)) {
-                    TypeState state = field.getInstanceFieldTypeState();
-                    for (AnalysisType type : state.types()) {
-                        /* Add the assignable types, as discovered by the static analysis. */
-                        type.getTypeFlow(bb, false).getState().types().forEach(referencedTypesSet::add);
-                    }
-                }
-            }
-
-            referencedTypes = new ArrayList<>(referencedTypesSet);
-        }
-
-        return referencedTypes;
-    }
-
-    public volatile AllInstantiatedTypeFlow assignableTypes;
-    public volatile AllInstantiatedTypeFlow assignableTypesNonNull;
-
-    public AllInstantiatedTypeFlow getTypeFlow(BigBang bb, boolean includeNull) {
-        if (assignableTypes == null) {
-            createTypeFlows(bb);
-        }
-
+    public AllInstantiatedTypeFlow getTypeFlow(@SuppressWarnings("unused") BigBang bb, boolean includeNull) {
         if (includeNull) {
             return assignableTypes;
         } else {
@@ -383,24 +348,16 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
         }
     }
 
-    private synchronized void createTypeFlows(BigBang bb) {
-        if (assignableTypes != null) {
-            return;
+    /**
+     * Returns the assignable types. The assignableTypesState receives newly assignable types before
+     * the assignableTypes flow so filter type flows are guaranteed to not miss any types.
+     */
+    public TypeState getAssignableTypes(boolean includeNull) {
+        if (includeNull) {
+            return assignableTypesState;
+        } else {
+            return assignableTypesNonNullState;
         }
-
-        /*
-         * Do not publish the new flows here, before they have been completely initialized. Other
-         * threads must not pick up partially initialized type flows.
-         */
-        AllInstantiatedTypeFlow newAssignableTypes = new AllInstantiatedTypeFlow(this);
-        AllInstantiatedTypeFlow newAssignableTypesNonNull = new AllInstantiatedTypeFlow(this);
-
-        updateTypeFlows(bb, newAssignableTypes, newAssignableTypesNonNull);
-
-        /* We perform the null-check on assignableTypes, so publish that one last. */
-        assignableTypesNonNull = newAssignableTypesNonNull;
-        assignableTypes = newAssignableTypes;
-
     }
 
     public static boolean verifyAssignableTypes(BigBang bb) {
@@ -432,199 +389,140 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
         return true;
     }
 
-    public static void updateAssignableTypes(BigBang bb) {
-        /*
-         * Update the assignable-state for all types. So do not post any update operations before
-         * the computation is finished, because update operations must not see any intermediate
-         * state.
-         */
-        List<AnalysisType> allTypes = bb.getUniverse().getTypes();
-        List<TypeFlow<?>> changedFlows = new ArrayList<>();
-
-        Map<Integer, BitSet> newAssignableTypes = new HashMap<>();
-        for (AnalysisType type : allTypes) {
-            if (type.isInstantiated()) {
-                int arrayDimension = type.dimension;
-                AnalysisType elementalType = type.elementalType;
-
-                addTypeToAssignableLists(type.getId(), elementalType, arrayDimension, newAssignableTypes, true);
-                for (int i = 0; i < arrayDimension; i++) {
-                    addTypeToAssignableLists(type.getId(), type, i, newAssignableTypes, false);
-                }
-                if (arrayDimension > 0 && !elementalType.isPrimitive()) {
-                    addTypeToAssignableLists(type.getId(), bb.getObjectType(), arrayDimension, newAssignableTypes, true);
-                }
-            }
-        }
-        for (AnalysisType type : allTypes) {
-            if (type.assignableTypes == null) {
-                /*
-                 * Computing assignable types in bulk here is much cheaper than doing it
-                 * individually when needed in updateTypeFlows.
-                 */
-                type.assignableTypes = new AllInstantiatedTypeFlow(type, TypeState.forNull());
-                type.assignableTypesNonNull = new AllInstantiatedTypeFlow(type, TypeState.forEmpty());
-            }
-            TypeState assignableTypeState = TypeState.forNull();
-            if (newAssignableTypes.get(type.getId()) != null) {
-                BitSet assignableTypes = newAssignableTypes.get(type.getId());
-                if (type.assignableTypes.getState().hasExactTypes(assignableTypes)) {
-                    /* Avoid creation of the expensive type state. */
-                    continue;
-                }
-                assignableTypeState = TypeState.forExactTypes(bb, newAssignableTypes.get(type.getId()), true);
-            }
-
-            updateFlow(bb, type.assignableTypes, assignableTypeState, changedFlows);
-            updateFlow(bb, type.assignableTypesNonNull, assignableTypeState.forNonNull(bb), changedFlows);
-        }
-
-        for (TypeFlow<?> changedFlow : changedFlows) {
-            bb.postFlow(changedFlow);
-        }
-    }
-
-    private static void addTypeToAssignableLists(int typeIdToAdd, AnalysisType elementalType, int arrayDimension, Map<Integer, BitSet> newAssignableTypes, boolean processType) {
-        if (elementalType == null) {
-            return;
-        }
-        if (processType) {
-            int addToId = elementalType.getArrayClass(arrayDimension).getId();
-            BitSet addToBitSet = newAssignableTypes.computeIfAbsent(addToId, BitSet::new);
-            addToBitSet.set(typeIdToAdd);
-        }
-        addTypeToAssignableLists(typeIdToAdd, elementalType.getSuperclass(), arrayDimension, newAssignableTypes, true);
-        for (AnalysisType interf : elementalType.getInterfaces()) {
-            addTypeToAssignableLists(typeIdToAdd, interf, arrayDimension, newAssignableTypes, true);
-        }
-    }
-
-    /** Called when the list of assignable types of a type is first initialized. */
-    private void updateTypeFlows(BigBang bb, TypeFlow<?> assignable, TypeFlow<?> assignableNonNull) {
-        if (isPrimitive() || isJavaLangObject()) {
-            return;
-        }
-
-        AnalysisType superType;
-        if (isInterface()) {
-            /*
-             * For interfaces, we have to search all instantiated types, i.e., start at
-             * java.lang.Object
-             */
-            superType = bb.getObjectType();
-        } else {
-            /*
-             * Find the closest supertype that has assignable-information computed. That is the best
-             * starting point.
-             */
-            superType = getSuperclass();
-            while (superType.assignableTypes == null) {
-                superType = superType.getSuperclass();
-            }
-        }
-
-        TypeState superAssignableTypeState = superType.assignableTypes.getState();
-        BitSet assignableTypesSet = new BitSet();
-        for (AnalysisType type : superAssignableTypeState.types()) {
-            if (this.isAssignableFrom(type)) {
-                assignableTypesSet.set(type.getId());
-            }
-        }
-
-        TypeState assignableTypeState = TypeState.forExactTypes(bb, assignableTypesSet, true);
-
-        updateFlow(bb, assignable, assignableTypeState);
-        updateFlow(bb, assignableNonNull, assignableTypeState.forNonNull(bb));
-    }
-
-    private static void updateFlow(BigBang bb, TypeFlow<?> flow, TypeState newState) {
-        updateFlow(bb, flow, newState, null);
-    }
-
-    private static void updateFlow(BigBang bb, TypeFlow<?> flow, TypeState newState, List<TypeFlow<?>> changedFlows) {
-        if (!flow.getState().equals(newState)) {
-            flow.setState(bb, newState);
-            if (changedFlows != null && (flow.getUses().size() > 0 || flow.getObservers().size() > 0)) {
-                changedFlows.add(flow);
-            }
-        }
-    }
-
+    /**
+     * This is a blocking operation, i.e., it will not return before all super-types have been
+     * notified about the newly instantiated sub-type.
+     */
     public boolean registerAsInHeap() {
-        registerAsReachable();
-        if (AtomicUtils.atomicMark(isInHeap)) {
-            assert isArray() || (isInstanceClass() && !Modifier.isAbstract(getModifiers())) : this;
-            universe.hostVM.checkForbidden(this, UsageKind.InHeap);
+        if (!isInHeap.get()) {
+            registerAsInstantiated(UsageKind.InHeap);
+            isInHeap.set(true);
             return true;
         }
         return false;
     }
 
     /**
+     * This is a blocking operation, i.e., it will not return before all super-types have been
+     * notified about the newly instantiated sub-type.
+     * 
      * @param node For future use and debugging
      */
     public boolean registerAsAllocated(Node node) {
-        registerAsReachable();
-        if (AtomicUtils.atomicMark(isAllocated)) {
-            assert isArray() || (isInstanceClass() && !Modifier.isAbstract(getModifiers())) : this;
-            universe.hostVM.checkForbidden(this, UsageKind.Allocated);
+        if (!isAllocated.get()) {
+            registerAsInstantiated(UsageKind.Allocated);
+            isAllocated.set(true);
             return true;
         }
         return false;
     }
 
-    public boolean registerAsReachable() {
-        if (!isReachable.get()) {
-            if (superClass != null) {
-                /*
-                 * The super class must be registered as reachable before this class because other
-                 * threads may query the fields which also collects the super class fields. Field
-                 * lookup guarantees that the type has already been marked as reachable.
-                 */
-                superClass.registerAsReachable();
-            }
-            for (AnalysisType iface : interfaces) {
-                iface.registerAsReachable();
-            }
-            if (AtomicUtils.atomicMark(isReachable)) {
-                universe.hostVM.checkForbidden(this, UsageKind.Reachable);
-                if (isArray()) {
-                    /*
-                     * For array types, distinguishing between "used" and "instantiated" does not
-                     * provide any benefits since array types do not implement new methods. Marking
-                     * all used array types as instantiated too allows more usages of
-                     * Arrays.newInstance without the need of explicit registration of types for
-                     * reflection.
-                     */
-                    registerAsAllocated(null);
+    private void registerAsInstantiated(UsageKind usage) {
+        assert isArray() || (isInstanceClass() && !Modifier.isAbstract(getModifiers())) : this;
+        universe.hostVM.checkForbidden(this, usage);
+        registerAsReachable();
+        registerAsAssignable();
+    }
 
-                    componentType.registerAsReachable();
+    private void registerAsAssignable() {
+        if (!isAssignable.get()) {
+            /*
+             * All update operations are posted after the new assignable type is registered with all
+             * super types. Otherwise, it is possible that some downstream updates will see
+             * incomplete states, e.g., a type may appear in a flow input before appearing in its
+             * filter, and types could be missed.
+             */
+            BigBang bb = universe.getBigbang();
+            TypeState typeState = TypeState.forExactType(bb, this, true);
 
-                    /*
-                     * For a class B extends A, the array type A[] is not a superclass of the array
-                     * type B[]. So there is no strict need to make A[] reachable when B[] is
-                     * reachable. But it turns out that this is puzzling for users, and there are
-                     * frameworks that instantiate such arrays programmatically using
-                     * Array.newInstance(). To reduce the amount of manual configuration that is
-                     * necessary, we mark all array types of the elemental supertypes and
-                     * superinterfaces also as reachable.
-                     */
-                    for (int i = 1; i <= dimension; i++) {
-                        if (elementalType.superClass != null) {
-                            elementalType.superClass.getArrayClass(i).registerAsReachable();
-                        }
-                        for (AnalysisType iface : elementalType.interfaces) {
-                            iface.getArrayClass(i).registerAsReachable();
-                        }
-                    }
+            /* Register the assignable type with its super types. */
+            Set<AnalysisType> changedSuperTypes = new HashSet<>();
+            forAllSuperTypes(t -> {
+                if (changedSuperTypes.add(t)) {
+                    t.addAssignableType(bb, typeState);
                 }
+            });
+            /* The type is registered as assignable with its super types, it is safe to mark it. */
+            isAssignable.set(true);
 
-                /* Schedule the registration task. */
-                universe.hostVM.executor().execute(initializationTask);
-                return true;
+            /* Propagate the new assignable type to all the uses of its super types. */
+            TypeState typeStateNonNull = typeState.forNonNull(bb);
+            for (AnalysisType superType : changedSuperTypes) {
+                superType.assignableTypes.addState(bb, typeState);
+                superType.assignableTypesNonNull.addState(bb, typeStateNonNull);
             }
         }
+    }
+
+    public boolean registerAsReachable() {
+        if (!isReachable.get()) {
+            forAllSuperTypes(AnalysisType::markReachable);
+            return true;
+        }
         return false;
+    }
+
+    private void markReachable() {
+        if (AtomicUtils.atomicMark(isReachable)) {
+            universe.hostVM.checkForbidden(this, UsageKind.Reachable);
+            if (isArray()) {
+                /*
+                 * For array types, distinguishing between "used" and "instantiated" does not
+                 * provide any benefits since array types do not implement new methods. Marking all
+                 * used array types as instantiated too allows more usages of Arrays.newInstance
+                 * without the need of explicit registration of types for reflection.
+                 */
+                registerAsAllocated(null);
+            }
+            universe.hostVM.executor().execute(initializationTask);
+        }
+    }
+
+    /**
+     * Iterates all super types for this type, where a super type is defined as any type that is
+     * assignable from this type, feeding each of them to the consumer.
+     * 
+     * For a class B extends A, the array type A[] is not a superclass of the array type B[]. So
+     * there is no strict need to make A[] reachable when B[] is reachable. But it turns out that
+     * this is puzzling for users, and there are frameworks that instantiate such arrays
+     * programmatically using Array.newInstance(). To reduce the amount of manual configuration that
+     * is necessary, we mark all array types of the elemental supertypes and superinterfaces also as
+     * reachable.
+     * 
+     * Moreover, even if B extends A doesn't imply that B[] extends A[] it does imply that
+     * A[].isAssignableFrom(B[]).
+     * 
+     * NOTE: This method doesn't guarantee that a super type will only be processed once. For
+     * example when java.lang.Class is processed its interface java.lang.reflect.AnnotatedElement is
+     * reachable directly, but also through java.lang.GenericDeclaration, so it will be processed
+     * twice.
+     */
+    private void forAllSuperTypes(Consumer<AnalysisType> superTypeConsumer) {
+        forAllSuperTypes(elementalType, dimension, true, superTypeConsumer);
+        for (int i = 0; i < dimension; i++) {
+            forAllSuperTypes(this, i, false, superTypeConsumer);
+        }
+        if (dimension > 0 && !elementalType.isPrimitive()) {
+            forAllSuperTypes(universe.objectType(), dimension, true, superTypeConsumer);
+        }
+    }
+
+    private static void forAllSuperTypes(AnalysisType elementType, int arrayDimension, boolean processType, Consumer<AnalysisType> superTypeConsumer) {
+        if (elementType == null) {
+            return;
+        }
+        if (processType) {
+            superTypeConsumer.accept(elementType.getArrayClass(arrayDimension));
+        }
+        for (AnalysisType interf : elementType.getInterfaces()) {
+            forAllSuperTypes(interf, arrayDimension, true, superTypeConsumer);
+        }
+        forAllSuperTypes(elementType.getSuperclass(), arrayDimension, true, superTypeConsumer);
+    }
+
+    private synchronized void addAssignableType(BigBang bb, TypeState typeState) {
+        assignableTypesState = TypeState.forUnion(bb, assignableTypesState, typeState);
+        assignableTypesNonNullState = assignableTypesState.forNonNull(bb);
     }
 
     public void ensureInitialized() {
@@ -738,9 +636,7 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
     }
 
     public boolean isInstantiated() {
-        boolean instantiated = isInHeap.get() || isAllocated.get();
-        assert !instantiated || isReachable.get();
-        return instantiated;
+        return isInHeap.get() || isAllocated.get();
     }
 
     /**
@@ -1059,6 +955,7 @@ public class AnalysisType implements WrappedJavaType, OriginalClassProvider, Com
 
     @Override
     public AnalysisField[] getStaticFields() {
+        registerAsReachable();
         return convertFields(wrapped.getStaticFields(), new ArrayList<>(), false);
     }
 

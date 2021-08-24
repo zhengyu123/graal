@@ -222,6 +222,7 @@ public class JfrTypeRepository implements JfrConstantPool {
 
         boolean addPackage(Package pkg, Module module) {
             if (!packages.containsKey(pkg.getName())) {
+                // The empty package represented by "" is always traced with id 0
                 long id = pkg.getName().equals("") ? 0 : ++currentPackageId;
                 packages.put(pkg.getName(), new PackageInfo(id, module));
                 return true;

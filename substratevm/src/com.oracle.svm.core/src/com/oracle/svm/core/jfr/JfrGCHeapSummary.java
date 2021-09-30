@@ -38,4 +38,3 @@ public class JfrGCHeapSummary {
         JfrEventSupport.get().emitGCHeapSummaryEvent(gcId, GCWhen.AfterGC, start, committedSize, reservedSize, heapUsed);
     }
 }
-

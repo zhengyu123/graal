@@ -48,4 +48,3 @@ public enum GCWhen {
         return this.description;
     }
 }
-

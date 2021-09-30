@@ -49,4 +49,3 @@ public interface JfrNamedGCEvent extends JfrGCEvent {
     @RawField
     void setBuffer(JfrBuffer buffer);
 }
-

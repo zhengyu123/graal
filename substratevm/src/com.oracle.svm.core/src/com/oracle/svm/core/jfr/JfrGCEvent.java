@@ -34,4 +34,3 @@ import org.graalvm.word.PointerBase;
 @RawStructure
 public interface JfrGCEvent extends PointerBase {
 }
-

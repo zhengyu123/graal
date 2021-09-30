@@ -57,4 +57,3 @@ public interface JfrPausePhase extends JfrNamedGCEvent {
     @RawField
     void setParent(JfrPausePhase phase);
 }
-

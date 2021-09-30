@@ -39,6 +39,7 @@ import com.oracle.svm.core.jdk.JDK14OrEarlier;
 import com.oracle.svm.core.jdk.JDK14OrLater;
 import com.oracle.svm.core.jdk.JDK15OrLater;
 import com.oracle.svm.core.jdk.JDK16OrEarlier;
+import com.oracle.svm.core.jfr.JfrTicks;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.core.jdk11.jfr.traceid.JfrTraceId;
 

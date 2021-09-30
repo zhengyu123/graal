@@ -34,6 +34,7 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.annotate.Uninterruptible;
 import com.oracle.svm.core.heap.Heap;
+import com.oracle.svm.core.heap.GCWhen;
 import com.oracle.svm.core.jdk.HiddenClassSupport;
 import com.oracle.svm.core.jdk11.jfr.traceid.JfrTraceId;
 
@@ -61,6 +62,7 @@ public class JfrTypeRepository implements JfrConstantPool {
         count += writePackages(writer, typeInfo);
         count += writeModules(writer, typeInfo);
         count += writeClassLoaders(writer, typeInfo);
+        count += writeGCWhen(writer);
         return count;
     }
 
@@ -195,6 +197,17 @@ public class JfrTypeRepository implements JfrConstantPool {
             writer.writeCompressedLong(JfrTraceId.getTraceId(cl.getClass()));
             writer.writeCompressedLong(symbolRepo.getSymbolId(cl.getName(), true));
         }
+    }
+
+    private static int writeGCWhen(JfrChunkWriter writer) {
+        writer.writeCompressedLong(JfrTypes.GCWhen.getId());
+        GCWhen[] whens = GCWhen.values();
+        writer.writeCompressedLong(whens.length);
+        for (GCWhen when: whens) {
+            writer.writeCompressedLong(when.getId());
+            writer.writeString(when.getDescription());
+        }
+        return 1;
     }
 
     private static class PackageInfo {

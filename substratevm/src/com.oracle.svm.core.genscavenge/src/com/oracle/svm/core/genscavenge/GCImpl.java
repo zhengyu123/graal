@@ -59,6 +59,9 @@ import com.oracle.svm.core.code.CodeInfoTable;
 import com.oracle.svm.core.code.RuntimeCodeInfoAccess;
 import com.oracle.svm.core.code.RuntimeCodeInfoMemory;
 import com.oracle.svm.core.code.SimpleCodeInfoQueryResult;
+import com.oracle.svm.core.jfr.JfrEventSupport;
+import com.oracle.svm.core.jfr.JfrGCHeapSummary;
+import com.oracle.svm.core.jfr.JfrPausePhase;
 import com.oracle.svm.core.deopt.DeoptimizationSupport;
 import com.oracle.svm.core.deopt.DeoptimizedFrame;
 import com.oracle.svm.core.deopt.Deoptimizer;
@@ -209,7 +212,15 @@ public final class GCImpl implements GC {
         precondition();
         verifyBeforeGC();
 
+        JfrGCHeapSummary.beforeGC(getCollectionEpoch(), WordFactory.unsigned(0),
+                        HeapImpl.getHeapImpl().getCommittedBytes(), HeapImpl.getHeapImpl().getCommittedBytes(),
+                        HeapImpl.getHeapImpl().getUsedBytes());
         NoAllocationVerifier nav = noAllocationVerifier.open();
+
+        // Jfr GCPuase
+        int size = SizeOf.get(JfrPausePhase.class);
+        JfrPausePhase phase = StackValue.get(size);
+        JfrEventSupport.get().startPausePhase(phase, getCollectionEpoch(), cause.getName());
         try {
             outOfMemory = doCollectImpl(cause, forceFullGC);
             if (outOfMemory) {
@@ -222,8 +233,12 @@ public final class GCImpl implements GC {
                 }
             }
         } finally {
+            JfrEventSupport.get().commitPausePhase(phase);
             nav.close();
         }
+        JfrGCHeapSummary.afterGC(getCollectionEpoch(), WordFactory.unsigned(0),
+                        HeapImpl.getHeapImpl().getCommittedBytes(), HeapImpl.getHeapImpl().getCommittedBytes(),
+                        HeapImpl.getHeapImpl().getUsedBytes());
 
         verifyAfterGC();
         postcondition();
@@ -236,14 +251,20 @@ public final class GCImpl implements GC {
         boolean incremental = HeapParameters.Options.CollectYoungGenerationSeparately.getValue() ||
                         (!forceFullGC && !policy.shouldCollectCompletely(false));
         boolean outOfMemory = false;
+        int size = SizeOf.get(JfrPausePhase.class);
+        JfrPausePhase phase = StackValue.get(size);
         if (incremental) {
+            JfrEventSupport.get().startPauseSubPhase(phase, "Incremental GC");
             outOfMemory = doCollectOnce(cause, false, false);
+            JfrEventSupport.get().commitPausePhase(phase);
         }
         if (!incremental || outOfMemory || forceFullGC || policy.shouldCollectCompletely(true)) {
             if (incremental) { // uncommit unaligned chunks
                 CommittedMemoryProvider.get().afterGarbageCollection();
             }
+            JfrEventSupport.get().startPauseSubPhase(phase, "Full GC");
             outOfMemory = doCollectOnce(cause, true, incremental);
+            JfrEventSupport.get().commitPausePhase(phase);
         }
 
         HeapImpl.getChunkProvider().freeExcessAlignedChunks();
@@ -497,19 +518,25 @@ public final class GCImpl implements GC {
         GreyToBlackObjRefVisitor.Counters counters = greyToBlackObjRefVisitor.openCounters();
         try {
             Timer rootScanTimer = timers.rootScan.open();
+            int size = SizeOf.get(JfrPausePhase.class);
+            JfrPausePhase phase = StackValue.get(size);
             try {
                 if (incremental) {
+                    JfrEventSupport.get().startPauseSubPhase(phase, "Incremental Scan Roots");
                     cheneyScanFromDirtyRoots();
                 } else {
+                    JfrEventSupport.get().startPauseSubPhase(phase, "Scan Roots");
                     cheneyScanFromRoots(followingIncremental);
                 }
             } finally {
+                JfrEventSupport.get().commitPausePhase(phase);
                 rootScanTimer.close();
             }
 
             if (DeoptimizationSupport.enabled()) {
                 Timer cleanCodeCacheTimer = timers.cleanCodeCache.open();
                 try {
+                    JfrEventSupport.get().startPauseSubPhase(phase, "Clean Runtime CodeCache");
                     /*
                      * Cleaning the code cache may invalidate code, which is a rather complex
                      * operation. To avoid side-effects between the code cache cleaning and the GC
@@ -517,21 +544,25 @@ public final class GCImpl implements GC {
                      */
                     cleanRuntimeCodeCache();
                 } finally {
+                    JfrEventSupport.get().commitPausePhase(phase);
                     cleanCodeCacheTimer.close();
                 }
             }
 
             Timer referenceObjectsTimer = timers.referenceObjects.open();
             try {
+                JfrEventSupport.get().startPauseSubPhase(phase, "Process Remembered References");
                 Reference<?> newlyPendingList = ReferenceObjectProcessing.processRememberedReferences();
                 HeapImpl.getHeapImpl().addToReferencePendingList(newlyPendingList);
             } finally {
+                JfrEventSupport.get().commitPausePhase(phase);
                 referenceObjectsTimer.close();
             }
 
             Timer releaseSpacesTimer = timers.releaseSpaces.open();
             try {
                 assert chunkReleaser.isEmpty();
+                JfrEventSupport.get().startPauseSubPhase(phase, "Release Spaces");
                 releaseSpaces();
 
                 /*
@@ -542,10 +573,13 @@ public final class GCImpl implements GC {
                 boolean keepAllAlignedChunks = incremental;
                 chunkReleaser.release(keepAllAlignedChunks);
             } finally {
+                JfrEventSupport.get().commitPausePhase(phase);
                 releaseSpacesTimer.close();
             }
 
+            JfrEventSupport.get().startPauseSubPhase(phase, "Swap Spaces");
             swapSpaces();
+            JfrEventSupport.get().commitPausePhase(phase);
         } finally {
             counters.close();
         }

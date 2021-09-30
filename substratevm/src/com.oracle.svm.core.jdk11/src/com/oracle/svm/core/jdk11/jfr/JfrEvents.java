@@ -39,7 +39,13 @@ import org.graalvm.nativeimage.Platforms;
 public enum JfrEvents {
     ThreadStartEvent("jdk.ThreadStart"),
     ThreadEndEvent("jdk.ThreadEnd"),
-    DataLossEvent("jdk.DataLoss");
+    DataLossEvent("jdk.DataLoss"),
+    GCHeapSummaryEvent("jdk.GCHeapSummary"),
+    GCPhasePauseEvent("jdk.GCPhasePause"),
+    GCPhasePauseLevel1Event("jdk.GCPhasePauseLevel1"),
+    GCPhasePauseLevel2Event("jdk.GCPhasePauseLevel2"),
+    GCPhasePauseLevel3Event("jdk.GCPhasePauseLevel3"),
+    GCPhasePauseLevel4Event("jdk.GCPhasePauseLevel4");
 
     private final long id;
 

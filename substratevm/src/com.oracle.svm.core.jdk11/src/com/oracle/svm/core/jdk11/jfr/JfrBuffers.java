@@ -27,6 +27,8 @@ package com.oracle.svm.core.jdk11.jfr;
 import org.graalvm.nativeimage.c.struct.RawPointerTo;
 import org.graalvm.word.PointerBase;
 
+import com.oracle.svm.core.jfr.JfrBuffer;
+
 /**
  * Pointer to an array of {@link JfrBuffer}s.
  */

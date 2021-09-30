@@ -35,6 +35,9 @@ import org.graalvm.word.WordFactory;
 import com.oracle.svm.core.SubstrateUtil;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.annotate.Uninterruptible;
+import com.oracle.svm.core.jfr.JfrBuffer;
+import com.oracle.svm.core.jfr.JfrPausePhase;
+import com.oracle.svm.core.jfr.JfrTicks;
 import com.oracle.svm.core.thread.Target_java_lang_Thread;
 import com.oracle.svm.core.thread.ThreadListener;
 import com.oracle.svm.core.thread.VMOperation;
@@ -69,6 +72,7 @@ public class JfrThreadLocal implements ThreadListener {
     private static final FastThreadLocalWord<JfrBuffer> nativeBuffer = FastThreadLocalFactory.createWord("JfrThreadLocal.nativeBuffer");
     private static final FastThreadLocalWord<UnsignedWord> dataLost = FastThreadLocalFactory.createWord("JfrThreadLocal.dataLost");
     private static final FastThreadLocalLong traceId = FastThreadLocalFactory.createLong("JfrThreadLocal.traceId");
+    private static final FastThreadLocalWord<JfrPausePhase> jfrPausePhase = FastThreadLocalFactory.createWord("JfrThreadLocal.GCPausePhase");
 
     private long threadLocalBufferSize;
 
@@ -216,6 +220,14 @@ public class JfrThreadLocal implements ThreadListener {
             return threadLocalBuffer;
         }
         return WordFactory.nullPointer();
+    }
+
+    public static JfrPausePhase getPausePhase() {
+        return jfrPausePhase.get();
+    }
+
+    public static void setPausePhase(JfrPausePhase phase) {
+        jfrPausePhase.set(phase);
     }
 
     @Uninterruptible(reason = "Accesses a JFR buffer.")

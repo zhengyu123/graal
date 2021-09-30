@@ -33,6 +33,8 @@ import org.graalvm.word.WordFactory;
 import com.oracle.svm.core.annotate.DuplicatedInNativeCode;
 import com.oracle.svm.core.annotate.Uninterruptible;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
+import com.oracle.svm.core.jfr.JfrBuffer;
+
 
 /**
  * A JFR event writer that does not allocate any objects in the Java heap. Can only be used from

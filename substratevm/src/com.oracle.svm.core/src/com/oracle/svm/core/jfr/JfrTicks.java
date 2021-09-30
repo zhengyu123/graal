@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.jdk11.jfr;
+package com.oracle.svm.core.jfr;
 
 import com.oracle.svm.core.annotate.Uninterruptible;
 

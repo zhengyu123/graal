@@ -43,7 +43,9 @@ public enum JfrTypes {
     Symbol("jdk.types.Symbol"),
     Module("jdk.types.Module"),
     Package("jdk.types.Package"),
-    FrameType("jdk.types.FrameType");
+    FrameType("jdk.types.FrameType"),
+    GCHeapSummary("jdk.types.GCHeapSummary"),
+    GCWhen("jdk.types.GCWhen");
 
     private final long id;
 

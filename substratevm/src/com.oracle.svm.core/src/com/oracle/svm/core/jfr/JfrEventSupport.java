@@ -29,6 +29,9 @@ import org.graalvm.compiler.api.replacements.Fold;
 import org.graalvm.compiler.serviceprovider.JavaVersionUtil;
 import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.word.UnsignedWord;
+
+import com.oracle.svm.core.heap.GCWhen;
 
 import com.oracle.svm.core.annotate.AutomaticFeature;
 
@@ -37,15 +40,37 @@ import com.oracle.svm.core.annotate.AutomaticFeature;
  */
 public abstract class JfrEventSupport {
     @Fold
-    public static JfrEventSupport singleton() {
+    public static JfrEventSupport get() {
         return ImageSingletons.lookup(JfrEventSupport.class);
     }
+
+    public abstract void emitGCHeapSummaryEvent(UnsignedWord gcId, GCWhen gcWhen, UnsignedWord start, UnsignedWord committedSize, UnsignedWord reservedSize, UnsignedWord heapUsed);
+
+    // GC events
+    public abstract void startPausePhase(JfrPausePhase phase, UnsignedWord gcEpoch, String name);
+
+    public abstract void startPauseSubPhase(JfrPausePhase phase, String name);
+
+    public abstract void commitPausePhase(JfrPausePhase phase);
 }
 
-/**
- * Placeholder implementation for old JDK version that do not have JFR support.ked.
- */
 final class JfrEventSupportBeforeJDK11 extends JfrEventSupport {
+    @Override
+    public void emitGCHeapSummaryEvent(UnsignedWord gcId, GCWhen gcWhen, UnsignedWord start, UnsignedWord committedSize, UnsignedWord reservedSize, UnsignedWord heapUsed) {
+    }
+
+    // GC Pauses
+    @Override
+    public void startPausePhase(JfrPausePhase phase, UnsignedWord gcId, String name) {
+    }
+
+    @Override
+    public void startPauseSubPhase(JfrPausePhase phase, String name) {
+    }
+
+    @Override
+    public void commitPausePhase(JfrPausePhase phase) {
+    }
 }
 
 @AutomaticFeature

@@ -52,24 +52,24 @@ public abstract class JfrEventSupport {
     public abstract void startPauseSubPhase(JfrPausePhase phase, String name);
 
     public abstract void commitPausePhase(JfrPausePhase phase);
-}
 
-final class JfrEventSupportBeforeJDK11 extends JfrEventSupport {
-    @Override
-    public void emitGCHeapSummaryEvent(UnsignedWord gcId, GCWhen gcWhen, UnsignedWord start, UnsignedWord committedSize, UnsignedWord reservedSize, UnsignedWord heapUsed) {
-    }
+    public static class JfrDoNothingEventSupport extends JfrEventSupport {
+        @Override
+        public void emitGCHeapSummaryEvent(UnsignedWord gcId, GCWhen gcWhen, UnsignedWord start, UnsignedWord committedSize, UnsignedWord reservedSize, UnsignedWord heapUsed) {
+        }
 
-    // GC Pauses
-    @Override
-    public void startPausePhase(JfrPausePhase phase, UnsignedWord gcId, String name) {
-    }
+        // GC Pauses
+        @Override
+        public void startPausePhase(JfrPausePhase phase, UnsignedWord gcId, String name) {
+        }
 
-    @Override
-    public void startPauseSubPhase(JfrPausePhase phase, String name) {
-    }
+        @Override
+        public void startPauseSubPhase(JfrPausePhase phase, String name) {
+        }
 
-    @Override
-    public void commitPausePhase(JfrPausePhase phase) {
+        @Override
+        public void commitPausePhase(JfrPausePhase phase) {
+        }
     }
 }
 
@@ -82,6 +82,6 @@ final class JfrFeatureBeforeJDK11 implements Feature {
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
-        ImageSingletons.add(JfrEventSupport.class, new JfrEventSupportBeforeJDK11());
+        ImageSingletons.add(JfrEventSupport.class, new JfrEventSupport.JfrDoNothingEventSupport());
     }
 }

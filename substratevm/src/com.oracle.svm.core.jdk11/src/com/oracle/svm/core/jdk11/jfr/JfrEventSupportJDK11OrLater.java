@@ -83,14 +83,14 @@ final class JfrEventSupportJDK11OrLater extends JfrEventSupport {
         phase.setLevel(0);
         phase.setParent(null);
         JfrNamedGCEventAccess.initName(phase, name);
-        assert JfrThreadLocal.getPausePhase() == null;
+        assert JfrThreadLocal.getPausePhase().isNull();
         JfrThreadLocal.setPausePhase(phase);
     }
 
     @Override
     public void startPauseSubPhase(JfrPausePhase phase, String name) {
         JfrPausePhase parent = JfrThreadLocal.getPausePhase();
-        assert parent != null;
+        assert parent.isNonNull();
         assert parent.getLevel() < 4;
         phase.setGCEpoch(parent.getGCEpoch());
         phase.setStartTicks(JfrTicks.elapsedTicks());
@@ -165,6 +165,10 @@ final class JfrFeatureJDK11OrLater implements Feature {
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
-        ImageSingletons.add(JfrEventSupport.class, new JfrEventSupportJDK11OrLater());
+        if (JfrEnabled.get()) {
+            ImageSingletons.add(JfrEventSupport.class, new JfrEventSupportJDK11OrLater());
+        } else {
+            ImageSingletons.add(JfrEventSupport.class, new JfrEventSupport.JfrDoNothingEventSupport());
+        }
     }
 }

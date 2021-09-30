@@ -144,11 +144,11 @@ final class JfrEventSupportJDK11OrLater extends JfrEventSupport {
             case 1:
                 return JfrEvents.GCPhasePauseLevel1Event;
             case 2:
-                return JfrEvents.GCPhasePauseLevel1Event;
+                return JfrEvents.GCPhasePauseLevel2Event;
             case 3:
-                return JfrEvents.GCPhasePauseLevel1Event;
+                return JfrEvents.GCPhasePauseLevel3Event;
             case 4:
-                return JfrEvents.GCPhasePauseLevel1Event;
+                return JfrEvents.GCPhasePauseLevel4Event;
             default:
                 VMError.shouldNotReachHere("At most 4 levels");
                 return JfrEvents.GCPhasePauseEvent; /* return something */

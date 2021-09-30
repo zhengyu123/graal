@@ -152,10 +152,20 @@ public final class GCImpl implements GC {
     private void collect(GCCause cause, boolean forceFullGC) {
         if (!hasNeverCollectPolicy()) {
             UnsignedWord requestingEpoch = possibleCollectionPrologue();
+
+            JfrGCHeapSummary.beforeGC(getCollectionEpoch(), WordFactory.unsigned(0),
+                            HeapImpl.getHeapImpl().getCommittedBytes(), HeapImpl.getHeapImpl().getCommittedBytes(),
+                            HeapImpl.getHeapImpl().getUsedBytes());
+
             boolean outOfMemory = collectWithoutAllocating(cause, forceFullGC);
             if (outOfMemory) {
                 throw OUT_OF_MEMORY_ERROR;
             }
+
+            JfrGCHeapSummary.afterGC(getCollectionEpoch(), WordFactory.unsigned(0),
+                            HeapImpl.getHeapImpl().getCommittedBytes(), HeapImpl.getHeapImpl().getCommittedBytes(),
+                            HeapImpl.getHeapImpl().getUsedBytes());
+
             possibleCollectionEpilogue(requestingEpoch);
         }
     }
@@ -212,9 +222,6 @@ public final class GCImpl implements GC {
         precondition();
         verifyBeforeGC();
 
-        JfrGCHeapSummary.beforeGC(getCollectionEpoch(), WordFactory.unsigned(0),
-                        HeapImpl.getHeapImpl().getCommittedBytes(), HeapImpl.getHeapImpl().getCommittedBytes(),
-                        HeapImpl.getHeapImpl().getUsedBytes());
         NoAllocationVerifier nav = noAllocationVerifier.open();
 
         // Jfr GCPuase
@@ -236,9 +243,6 @@ public final class GCImpl implements GC {
             JfrEventSupport.get().commitPausePhase(phase);
             nav.close();
         }
-        JfrGCHeapSummary.afterGC(getCollectionEpoch(), WordFactory.unsigned(0),
-                        HeapImpl.getHeapImpl().getCommittedBytes(), HeapImpl.getHeapImpl().getCommittedBytes(),
-                        HeapImpl.getHeapImpl().getUsedBytes());
 
         verifyAfterGC();
         postcondition();

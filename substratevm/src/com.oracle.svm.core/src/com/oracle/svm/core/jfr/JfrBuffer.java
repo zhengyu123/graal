@@ -85,10 +85,6 @@ public interface JfrBuffer extends PointerBase {
     @RawField
     int getAcquired();
 
-    /**
-     * Should only be called by {@link JfrBufferAccess#acquire(JfrBuffer)} and
-     * {@link JfrBufferAccess#release(JfrBuffer)}.
-     */
     @RawField
     void setAcquired(int value);
 

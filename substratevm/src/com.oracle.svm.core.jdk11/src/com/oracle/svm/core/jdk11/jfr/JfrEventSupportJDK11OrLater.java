@@ -91,6 +91,7 @@ final class JfrEventSupportJDK11OrLater extends JfrEventSupport {
     public void startPauseSubPhase(JfrPausePhase phase, String name) {
         JfrPausePhase parent = JfrThreadLocal.getPausePhase();
         assert parent.isNonNull();
+        assert !parent.equal(phase);
         assert parent.getLevel() < 4;
         phase.setGCEpoch(parent.getGCEpoch());
         phase.setStartTicks(JfrTicks.elapsedTicks());

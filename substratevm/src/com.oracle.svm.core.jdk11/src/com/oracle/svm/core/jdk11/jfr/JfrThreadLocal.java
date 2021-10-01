@@ -222,11 +222,14 @@ public class JfrThreadLocal implements ThreadListener {
         return WordFactory.nullPointer();
     }
 
+    // Only used for Jfr GC events during Garbage collection
     public static JfrPausePhase getPausePhase() {
+        assert VMOperation.isGCInProgress();
         return jfrPausePhase.get();
     }
 
     public static void setPausePhase(JfrPausePhase phase) {
+        assert VMOperation.isGCInProgress();
         jfrPausePhase.set(phase);
     }
 

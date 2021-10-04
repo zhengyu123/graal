@@ -25,7 +25,6 @@
 package com.oracle.svm.core.jdk11.jfr;
 
 import com.oracle.svm.core.annotate.Uninterruptible;
-import com.oracle.svm.core.jfr.JfrBuffer;
 
 /**
  * Helper class that holds methods related to {@link JfrNativeEventWriterData}.

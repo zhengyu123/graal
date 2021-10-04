@@ -29,8 +29,6 @@ import org.graalvm.nativeimage.c.struct.RawStructure;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 
-import com.oracle.svm.core.jfr.JfrBuffer;
-
 /**
  * A data structure that holds the mutable state of a {@link JfrNativeEventWriter}. Typically, it is
  * allocated on the stack.

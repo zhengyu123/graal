@@ -28,11 +28,12 @@ package com.oracle.svm.core.jdk11.jfr;
 // Checkstyle: allow reflection
 
 import org.graalvm.compiler.serviceprovider.GraalUnsafeAccess;
+import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.nativeimage.impl.UnmanagedMemorySupport;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.WordFactory;
 
 import com.oracle.svm.core.annotate.Uninterruptible;
-import com.oracle.svm.core.jfr.JfrBuffer;
 import com.oracle.svm.core.jfr.JfrNamedGCEvent;
 import com.oracle.svm.core.util.VMError;
 
@@ -69,17 +70,16 @@ public final class JfrNamedGCEventAccess {
     public static void initName(JfrNamedGCEvent ne, String name) {
         int len = name.length();
         byte coder = getCoder(name);
-
-        JfrBuffer buffer = JfrBufferAccess.allocate(WordFactory.unsigned(len * 4));
+        Pointer buffer =  ImageSingletons.lookup(UnmanagedMemorySupport.class).malloc(WordFactory.unsigned(len * 3)); // char occupies max 3 bytes
         ne.setBuffer(buffer);
         writeToBuffer(name, buffer);
         ne.setLength(len);
         ne.setLatin1(isLatin1(name));
     }
 
-    private static void writeToBuffer(String s, JfrBuffer buffer) {
+    private static void writeToBuffer(String s, Pointer buffer) {
         byte[] value = (byte[]) UNSAFE.getObject(s, VALUE_OFFSET);
-        Pointer pos = JfrBufferAccess.getDataStart(buffer);
+        Pointer pos = buffer;
         int len = s.length();
         boolean latin1 = isLatin1(s);
         int offset = 0;
@@ -93,13 +93,13 @@ public final class JfrNamedGCEventAccess {
     @Uninterruptible(reason = "Called from uninterruptible code.")
     public static char read(JfrNamedGCEvent ns, int index) {
         assert index < ns.getLength();
-        Pointer pos = JfrBufferAccess.getDataStart(ns.getBuffer());
+        Pointer pos = ns.getBuffer();
         return pos.readChar(index * Character.BYTES);
     }
 
     public static void release(JfrNamedGCEvent ns) {
-        JfrBuffer buffer = ns.getBuffer();
-        JfrBufferAccess.free(buffer);
+        Pointer buffer = ns.getBuffer();
+        ImageSingletons.lookup(UnmanagedMemorySupport.class).free(buffer);
     }
 
     static class StringUTF16 {

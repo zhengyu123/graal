@@ -25,6 +25,7 @@
  */
 package com.oracle.svm.core.jfr;
 
+import org.graalvm.word.Pointer;
 import org.graalvm.nativeimage.c.struct.RawField;
 import org.graalvm.nativeimage.c.struct.RawStructure;
 
@@ -44,8 +45,8 @@ public interface JfrNamedGCEvent extends JfrGCEvent {
     void setLatin1(boolean b);
 
     @RawField
-    JfrBuffer getBuffer();
+    Pointer getBuffer();
 
     @RawField
-    void setBuffer(JfrBuffer buffer);
+    void setBuffer(Pointer buffer);
 }

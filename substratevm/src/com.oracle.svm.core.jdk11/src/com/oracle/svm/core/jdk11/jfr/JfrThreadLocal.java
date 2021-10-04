@@ -35,7 +35,6 @@ import org.graalvm.word.WordFactory;
 import com.oracle.svm.core.SubstrateUtil;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.annotate.Uninterruptible;
-import com.oracle.svm.core.jfr.JfrBuffer;
 import com.oracle.svm.core.jfr.JfrPausePhase;
 import com.oracle.svm.core.jfr.JfrTicks;
 import com.oracle.svm.core.thread.Target_java_lang_Thread;

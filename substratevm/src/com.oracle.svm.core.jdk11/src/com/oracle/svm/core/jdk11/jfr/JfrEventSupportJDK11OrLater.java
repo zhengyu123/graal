@@ -39,7 +39,6 @@ import com.oracle.svm.core.heap.GCWhen;
 import com.oracle.svm.core.jfr.JfrEventSupport;
 import com.oracle.svm.core.jfr.JfrPausePhase;
 import com.oracle.svm.core.jfr.JfrTicks;
-import com.oracle.svm.core.jfr.JfrBuffer;
 import com.oracle.svm.core.util.VMError;
 
 /**

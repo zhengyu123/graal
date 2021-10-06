@@ -29,9 +29,6 @@ import org.graalvm.compiler.api.replacements.Fold;
 import org.graalvm.compiler.serviceprovider.JavaVersionUtil;
 import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.ImageSingletons;
-import org.graalvm.word.UnsignedWord;
-
-import com.oracle.svm.core.heap.GCWhen;
 
 import com.oracle.svm.core.annotate.AutomaticFeature;
 

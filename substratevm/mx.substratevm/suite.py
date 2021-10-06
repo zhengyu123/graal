@@ -317,7 +317,7 @@ suite = {
                 "src",
             ],
             "dependencies": [
-                "com.oracle.svm.core",
+                "com.oracle.svm.core.jfr",
             ],
             "checkstyle": "com.oracle.svm.core",
             "javaCompliance": "8+",

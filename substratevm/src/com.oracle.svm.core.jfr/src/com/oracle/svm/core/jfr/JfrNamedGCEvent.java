@@ -29,7 +29,12 @@ import org.graalvm.word.Pointer;
 import org.graalvm.nativeimage.c.struct.RawField;
 import org.graalvm.nativeimage.c.struct.RawStructure;
 
-/* Jfr PausePhase event */
+/*
+ * Jfr needs to store names (strings) in native buffers for GC events for following reasons:
+ * 1. GC may move strings
+ * 2. @Uninterruptible methods for emitting GC events, prevent them from calling most of String API
+ *    for accessing string contents.
+ */
 @RawStructure
 public interface JfrNamedGCEvent extends JfrGCEvent {
     @RawField

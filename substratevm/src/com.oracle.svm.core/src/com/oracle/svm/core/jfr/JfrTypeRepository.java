@@ -35,7 +35,10 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.SubstrateUtil;
 import com.oracle.svm.core.annotate.Uninterruptible;
+import com.oracle.svm.core.heap.GCCause;
+import com.oracle.svm.core.heap.GCName;
 import com.oracle.svm.core.heap.Heap;
+import com.oracle.svm.core.jfr.JfrTicks;
 import com.oracle.svm.core.jfr.traceid.JfrTraceId;
 
 /**
@@ -62,6 +65,8 @@ public class JfrTypeRepository implements JfrConstantPool {
         count += writePackages(writer, typeInfo);
         count += writeModules(writer, typeInfo);
         count += writeClassLoaders(writer, typeInfo);
+        count += writeGCCauses(writer);
+        count += writeGCNames(writer);
         return count;
     }
 
@@ -182,6 +187,45 @@ public class JfrTypeRepository implements JfrConstantPool {
 
         for (Map.Entry<ClassLoader, Long> clInfo : classLoaders.entrySet()) {
             writeClassLoader(writer, clInfo.getKey(), clInfo.getValue());
+        }
+        return NON_EMPTY;
+    }
+
+    private static int writeGCCauses(JfrChunkWriter writer) {
+        // GCCauses has null entries
+        GCCause[] causes = GCCause.getGCCauses();
+        int nonNullItems = 0;
+        for (int index = 0; index < causes.length; index ++) {
+            if (causes[index] != null) nonNullItems++;
+        }
+
+        if (nonNullItems == 0) {
+            return EMPTY;
+        }
+
+        writer.writeCompressedLong(JfrTypes.GCCause.getId());
+        writer.writeCompressedLong(nonNullItems);
+        for (GCCause cause: causes) {
+            if (cause != null) {
+                writer.writeCompressedLong(cause.getId());
+                writer.writeString(cause.getName());
+            }
+        }
+        return NON_EMPTY;
+    }
+
+    private static int writeGCNames(JfrChunkWriter writer) {
+        GCName[] gcNames = GCName.getGCNames();
+        System.out.println("Write GCName: " + gcNames);
+        if (gcNames == null) {
+            return EMPTY;
+        }
+
+        writer.writeCompressedLong(JfrTypes.GCName.getId());
+        writer.writeCompressedLong(gcNames.length);
+        for (GCName name: gcNames) {
+            writer.writeCompressedLong(name.getId());
+            writer.writeString(name.getName());
         }
         return NON_EMPTY;
     }

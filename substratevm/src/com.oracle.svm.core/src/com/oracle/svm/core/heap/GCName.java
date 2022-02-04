@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2019, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2022, Red Hat Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,7 +26,7 @@
 package com.oracle.svm.core.heap;
 
 import java.util.ArrayList;
-
+import java.util.concurrent.atomic.AtomicInteger;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature;
@@ -36,36 +37,31 @@ import com.oracle.svm.core.annotate.Uninterruptible;
 import com.oracle.svm.core.util.VMError;
 
 /**
- * This class holds garbage collection causes that are common and therefore shared between different
- * garbage collector implementations.
+ * This class holds supported garbage collector names
  */
-public class GCCause {
-    @Platforms(Platform.HOSTED_ONLY.class) private static final ArrayList<GCCause> HostedGCCauseList = new ArrayList<>();
+public class GCName {
+    @Platforms(Platform.HOSTED_ONLY.class) private static final ArrayList<GCName> HostedGCNameList = new ArrayList<>();
 
-    @DuplicatedInNativeCode public static final GCCause JavaLangSystemGC = new GCCause("java.lang.System.gc()", 0);
-    @DuplicatedInNativeCode public static final GCCause UnitTest = new GCCause("UnitTest", 1);
-    @DuplicatedInNativeCode public static final GCCause TestGCInDeoptimizer = new GCCause("TestGCInDeoptimizer", 2);
-
-    protected static GCCause[] GCCauses = new GCCause[]{JavaLangSystemGC, UnitTest, TestGCInDeoptimizer};
+    protected static GCName[] GCNames;
 
     private final int id;
     private final String name;
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    protected GCCause(String name, int id) {
-        this.id = id;
+    protected GCName(String name) {
         this.name = name;
-        addGCCauseMapping();
+        this.id = addGCNameMapping();
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    private void addGCCauseMapping() {
-        synchronized (HostedGCCauseList) {
-            while (HostedGCCauseList.size() <= id) {
-                HostedGCCauseList.add(null);
-            }
-            VMError.guarantee(HostedGCCauseList.get(id) == null, name + " and another GCCause have the same id.");
-            HostedGCCauseList.set(id, this);
+    private int addGCNameMapping() {
+        synchronized (HostedGCNameList) {
+            int id = HostedGCNameList.size();
+            HostedGCNameList.add(id, this);
+            // HACK!
+            // GCNameFeature.beforeCompilation() does not run for some unknown reasons!!!
+            GCNames = HostedGCNameList.toArray(new GCName[HostedGCNameList.size()]);
+            return id;
         }
     }
 
@@ -78,25 +74,22 @@ public class GCCause {
         return id;
     }
 
-    public static GCCause fromId(int causeId) {
-        return GCCauses[causeId];
-    }
-
-    public static GCCause[] getGCCauses() {
-        return GCCauses;
+    public static GCName[] getGCNames() {
+        return GCNames;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static void cacheReverseMapping() {
-        GCCauses = HostedGCCauseList.toArray(new GCCause[HostedGCCauseList.size()]);
+        GCNames = HostedGCNameList.toArray(new GCName[HostedGCNameList.size()]);
     }
 }
 
 @AutomaticFeature
-class GCCauseFeature implements Feature {
+class GCNameFeature implements Feature {
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        GCCause.cacheReverseMapping();
-        access.registerAsImmutable(GCCause.GCCauses);
+        GCName.cacheReverseMapping();
+        access.registerAsImmutable(GCName.GCNames);
     }
 }
+

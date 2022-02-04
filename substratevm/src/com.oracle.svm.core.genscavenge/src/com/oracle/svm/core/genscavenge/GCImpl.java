@@ -74,6 +74,7 @@ import com.oracle.svm.core.heap.NoAllocationVerifier;
 import com.oracle.svm.core.heap.ReferenceHandler;
 import com.oracle.svm.core.heap.ReferenceMapIndex;
 import com.oracle.svm.core.heap.RuntimeCodeCacheCleaner;
+import com.oracle.svm.core.jfr.JfrTicks;
 import com.oracle.svm.core.jdk.RuntimeSupport;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.os.CommittedMemoryProvider;
@@ -208,7 +209,7 @@ public final class GCImpl implements GC {
 
         NoAllocationVerifier nav = noAllocationVerifier.open();
 
-        long startTicks = JfrGCEventSupport.startGCPhasePause();
+        long startTicks = JfrTicks.elapsedTicks();
         try {
             outOfMemory = doCollectImpl(cause, requestingNanoTime, forceFullGC, false);
             if (outOfMemory) {
@@ -221,7 +222,9 @@ public final class GCImpl implements GC {
                 }
             }
         } finally {
-            JfrGCEventSupport.emitGCPhasePauseEvent(getCollectionEpoch(), cause.getName(), startTicks);
+            long endTicks = JfrTicks.elapsedTicks();
+            long pauseTime = endTicks - startTicks;
+            JfrGCEventSupport.emitGarbageCollectionEvent(getCollectionEpoch(), GenScavengeGCName.GenScavenge, cause, pauseTime, pauseTime, startTicks, endTicks);
             nav.close();
         }
 

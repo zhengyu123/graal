@@ -38,7 +38,6 @@ import com.oracle.svm.core.annotate.Uninterruptible;
 import com.oracle.svm.core.heap.GCCause;
 import com.oracle.svm.core.heap.GCName;
 import com.oracle.svm.core.heap.Heap;
-import com.oracle.svm.core.jfr.JfrTicks;
 import com.oracle.svm.core.jfr.traceid.JfrTraceId;
 
 /**
@@ -195,8 +194,10 @@ public class JfrTypeRepository implements JfrConstantPool {
         // GCCauses has null entries
         GCCause[] causes = GCCause.getGCCauses();
         int nonNullItems = 0;
-        for (int index = 0; index < causes.length; index ++) {
-            if (causes[index] != null) nonNullItems++;
+        for (int index = 0; index < causes.length; index++) {
+            if (causes[index] != null) {
+                nonNullItems++;
+            }
         }
 
         if (nonNullItems == 0) {

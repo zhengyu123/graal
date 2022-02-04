@@ -26,18 +26,15 @@
 package com.oracle.svm.core.heap;
 
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.svm.core.annotate.AutomaticFeature;
-import com.oracle.svm.core.annotate.DuplicatedInNativeCode;
 import com.oracle.svm.core.annotate.Uninterruptible;
-import com.oracle.svm.core.util.VMError;
 
 /**
- * This class holds supported garbage collector names
+ * This class holds supported garbage collector names.
  */
 public class GCName {
     @Platforms(Platform.HOSTED_ONLY.class) private static final ArrayList<GCName> HostedGCNameList = new ArrayList<>();

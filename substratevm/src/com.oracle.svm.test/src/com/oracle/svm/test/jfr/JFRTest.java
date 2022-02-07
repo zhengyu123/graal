@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, 2021, Red Hat Inc. All rights reserved.
+ * Copyright (c) 2021, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2022, Red Hat Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -68,14 +68,26 @@ public abstract class JFRTest {
     public void endRecording() {
         try {
             jfr.endRecording(recording);
-            try (RecordingFile recordingFile = new RecordingFile(recording.getDestination())) {
-                assertNotNull(recordingFile);
-                JFRFileParser.parse(recording);
-            } finally {
-                jfr.cleanupRecording(recording);
-            }
         } catch (Exception e) {
             Assert.fail("Fail to stop recording! Cause: " + e.getMessage());
+        }
+
+        try {
+            checkRecording();
+        } finally {
+            try {
+                jfr.cleanupRecording(recording);
+            } catch (Exception e) {
+            }
+        }
+
+    }
+
+    protected void checkRecording() throws AssertionError {
+        try {
+            JFRFileParser.parse(recording);
+        } catch (Exception e) {
+            Assert.fail("Failed to parse recording: " + e.getMessage());
         }
     }
 }

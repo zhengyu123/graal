@@ -217,7 +217,6 @@ public class JfrTypeRepository implements JfrConstantPool {
 
     private static int writeGCNames(JfrChunkWriter writer) {
         GCName[] gcNames = GCName.getGCNames();
-        System.out.println("Write GCName: " + gcNames);
         if (gcNames == null) {
             return EMPTY;
         }

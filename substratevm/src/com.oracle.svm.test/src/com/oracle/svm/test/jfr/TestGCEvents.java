@@ -26,52 +26,20 @@
 
 package com.oracle.svm.test.jfr;
 
-import org.junit.After;
-import org.junit.Assert;
 import org.junit.Test;
 
-import jdk.jfr.Recording;
-import jdk.jfr.consumer.RecordedEvent;
-import jdk.jfr.consumer.RecordingFile;
-
 public class TestGCEvents extends JFRTest {
-    static class Dummy {
-        private long[] payload;
-        Dummy() {
-            payload = new long[100];
-        }
+    @Override
+    public String[] testEvents() {
+        return new String[] {
+            "jdk.GarbageCollection",
+            "jdk.GCPhasePause",
+            "jdk.GCPhasePauseLevel1"
+        };
     }
 
-    private volatile Dummy sink;
-    
     @Test
     public void test() throws Exception {
-        for (int index = 0; index < 10000; index++) {
-            sink = new Dummy();
-        }
-    }
-
-    @Override
-    protected void checkRecording() {
-        boolean hasGarbageCollectionEvent = false;
-        boolean hasGCPhasePauseEvent = false;
-        int events = 0;
-        try (RecordingFile recordingFile = new RecordingFile(recording.getDestination())) {
-            while (recordingFile.hasMoreEvents()) {
-                events++;
-                RecordedEvent event = recordingFile.readEvent();
-                String eventName = event.getEventType().getName();
-                System.out.println("Event: " + eventName);
-                Assert.fail("Event: " + eventName);
-                if (eventName.equals("jdk.GarbageCollection")) {
-                    hasGarbageCollectionEvent = true;
-                } else if (eventName.equals("jdk.GCPhasePause")) {
-                    hasGCPhasePauseEvent = true;
-                }
-            }
-        } catch (Exception e) {
-            Assert.fail("Failed to read events: " + e.getMessage());
-        }
-        Assert.assertTrue("Total: " + events + " events", hasGarbageCollectionEvent && hasGCPhasePauseEvent);
+        System.gc();
     }
 }

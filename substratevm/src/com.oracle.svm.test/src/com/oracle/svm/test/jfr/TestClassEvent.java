@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, 2021, Red Hat Inc. All rights reserved.
+ * Copyright (c) 2021, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2022, Red Hat Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,6 +30,13 @@ import com.oracle.svm.test.jfr.events.ClassEvent;
 import org.junit.Test;
 
 public class TestClassEvent extends JFRTest {
+
+    @Override
+    public String[] testEvents() {
+        return new String[] {
+            ClassEvent.class.toString()
+        };
+    }
 
     @Test
     public void test() throws Exception {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -57,6 +57,8 @@ import com.oracle.svm.core.annotate.Uninterruptible;
 import com.oracle.svm.core.graal.nodes.KillMemoryNode;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
+import com.oracle.svm.core.jfr.events.SafepointBeginEvent;
+import com.oracle.svm.core.jfr.events.SafepointEndEvent;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.nodes.CFunctionEpilogueNode;
 import com.oracle.svm.core.nodes.CFunctionPrologueNode;
@@ -612,6 +614,7 @@ public final class Safepoint {
         protected boolean freeze(String reason) {
             assert SubstrateOptions.MultiThreaded.getValue() : "Should only freeze for a safepoint when multi-threaded.";
             assert VMOperationControl.mayExecuteVmOperations();
+            long startTicks = SafepointBeginEvent.getTicks();
 
             /* the current thread may already own the lock for non-safepoint reasons */
             boolean lock = !VMThreads.THREAD_MUTEX.isOwner();
@@ -624,11 +627,12 @@ public final class Safepoint {
             Statistics.setStartNanos();
             ImageSingletons.lookup(Heap.class).prepareForSafepoint();
             safepointState = SYNCHRONIZING;
-            requestSafepoints(reason);
+            int numOfThreads = requestSafepoints(reason);
             waitForSafepoints(reason);
             Statistics.setFrozenNanos();
             safepointState = AT_SAFEPOINT;
             safepointId = safepointId.add(1);
+            SafepointBeginEvent.emit(getSafepointId(), numOfThreads, startTicks);
             return lock;
         }
 
@@ -637,9 +641,10 @@ public final class Safepoint {
         protected void thaw(String reason, boolean unlock) {
             assert SubstrateOptions.MultiThreaded.getValue() : "Should only thaw from a safepoint when multi-threaded.";
             assert VMOperationControl.mayExecuteVmOperations();
-
+            long startTicks = SafepointEndEvent.getTicks();
             safepointState = NOT_AT_SAFEPOINT;
             releaseSafepoints(reason);
+            SafepointEndEvent.emit(getSafepointId(), startTicks);
             ImageSingletons.lookup(Heap.class).endSafepoint();
             Statistics.setThawedNanos();
             requestingThread = WordFactory.nullPointer();
@@ -657,15 +662,17 @@ public final class Safepoint {
         }
 
         /** Send each of the threads (except myself) a request to come to a safepoint. */
-        private static void requestSafepoints(String reason) {
+        private static int requestSafepoints(String reason) {
             VMThreads.THREAD_MUTEX.assertIsOwner("Must hold mutex while requesting a safepoint.");
             final Log trace = Log.noopLog().string("[Safepoint.Master.requestSafepoints:  reason: ").string(reason);
+            int numOfThreads = 0;
 
             // Walk the threads list and ask each thread (except myself) to come to a safepoint.
             for (IsolateThread vmThread = VMThreads.firstThread(); vmThread.isNonNull(); vmThread = VMThreads.nextThread(vmThread)) {
                 if (isMyself(vmThread)) {
                     continue;
                 }
+                numOfThreads++;
                 if (SafepointBehavior.ignoresSafepoints(vmThread)) {
                     /* If safepoints are disabled, do not ask it to stop at safepoints. */
                     continue;
@@ -677,6 +684,7 @@ public final class Safepoint {
                 trace.string(" with requests: ").signed(Statistics.getRequested());
             }
             trace.string("]").newline();
+            return numOfThreads;
         }
 
         /**

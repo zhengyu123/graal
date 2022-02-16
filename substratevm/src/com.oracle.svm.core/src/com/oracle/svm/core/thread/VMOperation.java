@@ -29,15 +29,11 @@ import java.util.ArrayList;
 import org.graalvm.nativeimage.CurrentIsolate;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.IsolateThread;
-import org.graalvm.nativeimage.Platform;
-import org.graalvm.nativeimage.Platforms;
-import org.graalvm.nativeimage.hosted.Feature;
-
-import com.oracle.svm.core.annotate.AutomaticFeature;
 
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.annotate.RestrictHeapAccess;
 import com.oracle.svm.core.annotate.Uninterruptible;
+import com.oracle.svm.core.jfr.events.ExecuteVMOperationEvent;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.thread.VMOperationControl.OpInProgress;
 import com.oracle.svm.core.util.VMError;
@@ -49,26 +45,30 @@ import com.oracle.svm.core.util.VMError;
  * unexpected exceptions while executing critical code.
  */
 public abstract class VMOperation {
-    @Platforms(Platform.HOSTED_ONLY.class) private static final ArrayList<VMOperation> HostedVMOperationList = new ArrayList<>();
+    private static final ArrayList<VMOperation> HostedVMOperationList = new ArrayList<>();
 
     private final String name;
-    private final SystemEffect systemEffect;
     private final int id;
-
-    protected static VMOpertion[] vmOpertions;
+    private final SystemEffect systemEffect;
 
     protected VMOperation(String name, SystemEffect systemEffect) {
         this.name = name;
+        this.id = addToVMOperationList();
         this.systemEffect = systemEffect;
-        this.id = addToVMOperationList()
     }
 
     private int addToVMOperationList() {
         synchronized (HostedVMOperationList) {
             int id = HostedVMOperationList.size();
-            HostedVMOperationList.add()
+            HostedVMOperationList.add(this);
+            return id;
         }
+    }
 
+    public static VMOperation[] getVMOperations() {
+        synchronized (HostedVMOperationList) {
+            return HostedVMOperationList.toArray(new VMOperation[HostedVMOperationList.size()]);
+        }
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
@@ -109,16 +109,19 @@ public abstract class VMOperation {
         VMOperation prevOperation = control.getInProgress().getOperation();
         IsolateThread prevQueuingThread = control.getInProgress().getQueuingThread();
         IsolateThread prevExecutingThread = control.getInProgress().getExecutingThread();
-
-        control.setInProgress(this, getQueuingThread(data), CurrentIsolate.getCurrentThread(), true);
+        IsolateThread requestingThread = getQueuingThread(data);
+        control.setInProgress(this, requestingThread, CurrentIsolate.getCurrentThread(), true);
+        long startTicks = 0;
         try {
             trace.string("[Executing operation ").string(name);
+            startTicks = ExecuteVMOperationEvent.getTicks();
             operate(data);
             trace.string("]");
         } catch (Throwable t) {
             trace.string("[VMOperation.execute caught: ").string(t.getClass().getName()).string("]").newline();
             throw VMError.shouldNotReachHere(t);
         } finally {
+            ExecuteVMOperationEvent.emit(this, requestingThread, startTicks);
             control.setInProgress(prevOperation, prevQueuingThread, prevExecutingThread, false);
         }
     }
@@ -209,14 +212,5 @@ public abstract class VMOperation {
         public static boolean getCausesSafepoint(SystemEffect value) {
             return value == SAFEPOINT;
         }
-    }
-}
-
-@AutomaticFeature
-class VMOperationFeature implements Feature {
-    @Override
-    public void beforeCompilation(BeforeCompilationAccess access) {
-        GCCause.cacheReverseMapping();
-        access.registerAsImmutable(GCCause.GCCauses);
     }
 }

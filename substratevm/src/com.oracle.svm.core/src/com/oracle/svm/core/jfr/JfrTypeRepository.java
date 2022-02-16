@@ -37,6 +37,7 @@ import com.oracle.svm.core.SubstrateUtil;
 import com.oracle.svm.core.annotate.Uninterruptible;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.jfr.traceid.JfrTraceId;
+import com.oracle.svm.core.thread.VMOperation;
 
 /**
  * Repository that collects and writes used classes, packages, modules, and classloaders.
@@ -62,6 +63,7 @@ public class JfrTypeRepository implements JfrConstantPool {
         count += writePackages(writer, typeInfo);
         count += writeModules(writer, typeInfo);
         count += writeClassLoaders(writer, typeInfo);
+        count += writeVMOperations(writer);
         return count;
     }
 
@@ -196,6 +198,19 @@ public class JfrTypeRepository implements JfrConstantPool {
             writer.writeCompressedLong(JfrTraceId.getTraceId(cl.getClass()));
             writer.writeCompressedLong(symbolRepo.getSymbolId(cl.getName(), true));
         }
+    }
+
+    private static int writeVMOperations(JfrChunkWriter writer) {
+        VMOperation[] vmOperations = VMOperation.getVMOperations();
+
+        assert vmOperations.length > 0;
+        writer.writeCompressedLong(JfrType.VMOperation.getId());
+        writer.writeCompressedLong(vmOperations.length);
+        for (VMOperation op : vmOperations) {
+            writer.writeCompressedLong(op.getId());
+            writer.writeString(op.getName());
+        }
+        return NON_EMPTY;
     }
 
     private static class PackageInfo {

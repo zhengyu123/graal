@@ -39,7 +39,8 @@ public enum JfrType {
     Symbol("jdk.types.Symbol"),
     Module("jdk.types.Module"),
     Package("jdk.types.Package"),
-    FrameType("jdk.types.FrameType");
+    FrameType("jdk.types.FrameType"),
+    VMOperation("jdk.types.VMOperationType");
 
     private final long id;
 

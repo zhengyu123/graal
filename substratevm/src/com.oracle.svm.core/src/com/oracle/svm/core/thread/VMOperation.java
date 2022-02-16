@@ -83,7 +83,7 @@ public abstract class VMOperation {
 
     @Override
     public boolean equals(Object o) {
-        return o.getClass().equals(getClass()) && ((VMOperation)o).getName().equals(name);
+        return o.getClass().equals(getClass()) && ((VMOperation) o).getName().equals(name);
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)

@@ -58,9 +58,9 @@ public class ExecuteVMOperationEvent extends TimedEvent {
             JfrNativeEventWriter.putEventThread(data);
             JfrNativeEventWriter.putLong(data, vmOperation.getId());
             JfrNativeEventWriter.putBoolean(data, vmOperation.getCausesSafepoint());
-            JfrNativeEventWriter.putBoolean(data, vmOperation.getCausesSafepoint()); // caller blocked
-            JfrNativeEventWriter.putThread(data, requestingThread); // Requesting thread
-            JfrNativeEventWriter.putLong(data, VMOperation.isInProgressAtSafepoint() ? Safepoint.Master.singleton().getSafepointId().rawValue() : 0); // Safepoint Id
+            JfrNativeEventWriter.putBoolean(data, vmOperation.getCausesSafepoint());
+            JfrNativeEventWriter.putThread(data, requestingThread);
+            JfrNativeEventWriter.putLong(data, VMOperation.isInProgressAtSafepoint() ? Safepoint.Master.singleton().getSafepointId().rawValue() : 0);
             JfrNativeEventWriter.endEventWrite(data, false);
         }
     }

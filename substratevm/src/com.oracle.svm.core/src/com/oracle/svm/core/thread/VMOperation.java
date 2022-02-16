@@ -47,7 +47,6 @@ import com.oracle.svm.core.util.VMError;
 public abstract class VMOperation {
     // Assume there are not too many VMOperation types, linear search is fast enough.
     private static final ArrayList<VMOperation> HostedVMOperationList = new ArrayList<>(20);
-    private static int nextId;
 
     private final String name;
     private final int id;
@@ -61,13 +60,13 @@ public abstract class VMOperation {
 
     private int addToVMOperationList() {
         synchronized (HostedVMOperationList) {
-            int id = HostedVMOperationList.indexOf(this);
-            if (id != -1) {
-                return id;
+            int thisId = HostedVMOperationList.indexOf(this);
+            if (thisId != -1) {
+                return thisId;
             }
-            id = HostedVMOperationList.size();
+            thisId = HostedVMOperationList.size();
             HostedVMOperationList.add(this);
-            return id;
+            return thisId;
         }
     }
 

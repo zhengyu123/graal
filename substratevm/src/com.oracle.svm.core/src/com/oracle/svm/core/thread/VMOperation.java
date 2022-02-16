@@ -45,7 +45,9 @@ import com.oracle.svm.core.util.VMError;
  * unexpected exceptions while executing critical code.
  */
 public abstract class VMOperation {
-    private static final ArrayList<VMOperation> HostedVMOperationList = new ArrayList<>();
+    // Assume there are not too many VMOperation types, linear search is fast enough.
+    private static final ArrayList<VMOperation> HostedVMOperationList = new ArrayList<>(20);
+    private static int nextId;
 
     private final String name;
     private final int id;
@@ -59,7 +61,11 @@ public abstract class VMOperation {
 
     private int addToVMOperationList() {
         synchronized (HostedVMOperationList) {
-            int id = HostedVMOperationList.size();
+            int id = HostedVMOperationList.indexOf(this);
+            if (id != -1) {
+                return id;
+            }
+            id = HostedVMOperationList.size();
             HostedVMOperationList.add(this);
             return id;
         }
@@ -69,6 +75,16 @@ public abstract class VMOperation {
         synchronized (HostedVMOperationList) {
             return HostedVMOperationList.toArray(new VMOperation[HostedVMOperationList.size()]);
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return name.hashCode() + getClass().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o.getClass().equals(getClass()) && ((VMOperation)o).getName().equals(name);
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
